@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CPET AT Web Annotation</title>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    header { padding: 12px 16px; background: #0b6cff; color: #fff; }
+    main { padding: 12px 16px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .controls label { font-size: 14px; }
+    .panel { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    @media (max-width: 1200px) {
+      .panel { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+    }
+    #vslope-main { min-height: 360px; }
+    #panel6-main, #panel9-main { min-height: 260px; }
+    .panel > div, .thumb > div { width: 100%; height: 100%; }
+    .thumb-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+    @media (max-width: 900px) {
+      .thumb-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+    }
+    .thumb { border: 1px solid #ddd; background: #fafafa; padding: 4px; height: 260px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+    th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 12px; text-align: right; }
+    th { background: #f5f5f5; }
+    .status { margin-left: 8px; font-weight: 600; }
+    .muted { color: #666; font-size: 12px; }
+    .inline { display: inline-flex; gap: 8px; align-items: center; }
+    input[type="number"] { width: 100px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <h2 style="margin:0;">CPET AT 标注（双读+仲裁）</h2>
+      <a href="/app/replay.html" style="color:#fff; text-decoration:none; font-size:13px;">Replay</a>
+    </div>
+  </header>
+  <main>
+    <div class="controls">
+      <label>Exam:
+        <select id="exam-select"></select>
+      </label>
+      <label>Smoothing:
+        <select id="smooth-select">
+          <option value="none">原始</option>
+          <option value="breath:8" selected>8-breath</option>
+          <option value="breath:10">10-breath</option>
+          <option value="sec:10">10s</option>
+          <option value="sec:15">15s</option>
+        </select>
+      </label>
+      <label>Role:
+        <select id="role-select">
+          <option value="a">Reader A</option>
+          <option value="b">Reader B</option>
+          <option value="adjudicator">Adjudicator</option>
+        </select>
+      </label>
+      <label>AT (s):
+        <input type="number" id="at-input" min="0" step="1" value="0" />
+      </label>
+      <button id="save-btn">保存标注</button>
+      <span id="status" class="status"></span>
+    </div>
+
+    <div class="muted">主视图：V-Slope 大图 + Panel6/Panel9；下方 3×3 等尺寸缩略九宫格。</div>
+    <div class="panel">
+      <div id="vslope-main"></div>
+      <div id="panel6-main"></div>
+      <div id="panel9-main"></div>
+    </div>
+
+    <h4>Wasserman 九图缩略 (3×3)</h4>
+    <div class="thumb-grid">
+      <div class="thumb"><div id="p1"></div></div>
+      <div class="thumb"><div id="p2"></div></div>
+      <div class="thumb"><div id="p3"></div></div>
+      <div class="thumb"><div id="p4"></div></div>
+      <div class="thumb"><div id="p5"></div></div>
+      <div class="thumb"><div id="p6"></div></div>
+      <div class="thumb"><div id="p7"></div></div>
+      <div class="thumb"><div id="p8"></div></div>
+      <div class="thumb"><div id="p9"></div></div>
+    </div>
+
+    <table id="data-table"></table>
+  </main>
+
+  <script>
+    const API_BASE = "/api";
+    let currentExam = null;
+    let currentData = null;
+    let cursorTime = null;
+
+    async function fetchExams() {
+      const res = await fetch(`${API_BASE}/exams?limit=50`);
+      const exams = await res.json();
+      const select = document.getElementById("exam-select");
+      select.innerHTML = "";
+      exams.forEach((item, idx) => {
+        const opt = document.createElement("option");
+        opt.value = item.exam_id;
+        opt.textContent = `${item.exam_id} (${item.institute})`;
+        if (idx === 0) opt.selected = true;
+        select.appendChild(opt);
+      });
+      if (exams.length > 0) {
+        loadExam(exams[0].exam_id);
+      }
+    }
+
+    async function loadExam(examId) {
+      currentExam = examId;
+      const smooth = document.getElementById("smooth-select").value;
+      const res = await fetch(`${API_BASE}/exams/${examId}/timeseries?smooth=${smooth}&views=panel1,panel2,panel3,panel4,panel5,panel6,panel7,panel8,panel9`);
+      currentData = await res.json();
+      const duration = currentData.duration_sec || 0;
+      document.getElementById("at-input").value = Math.round(duration / 2);
+      renderCharts();
+      renderThumbnails();
+      renderTable();
+      updateConsensus();
+    }
+
+    function renderCharts() {
+      if (!currentData || !currentData.views) return;
+      const vslope = currentData.views.panel5 || currentData.views.vslope || { vo2: [], vco2: [], time_sec: [] };
+      const panel6 = currentData.views.panel6 || { time_sec: [], ve_vo2: [], ve_vco2: [] };
+      const panel9 = currentData.views.panel9 || { time_sec: [], peto2: [], petco2: [] };
+
+      const xMin = Math.min(...vslope.vo2, 0);
+      const xMax = Math.max(...vslope.vo2, 1);
+      const diag = {
+        type: "line",
+        x0: xMin,
+        y0: xMin,
+        x1: xMax,
+        y1: xMax,
+        line: { color: "rgba(200,0,0,0.5)", dash: "dot" }
+      };
+      const cursorShape = cursorTime === null ? [] : [{
+        type: "line",
+        x0: cursorTime,
+        x1: cursorTime,
+        y0: 0,
+        y1: 1,
+        xref: "x",
+        yref: "paper",
+        line: { color: "red", dash: "dash" }
+      }];
+
+      Plotly.newPlot("vslope-main", [
+        {
+          x: vslope.vo2,
+          y: vslope.vco2,
+          customdata: vslope.time_sec,
+          mode: "lines+markers",
+          name: "V-Slope",
+          marker: { size: 6, color: "#1f77b4" },
+          hovertemplate: "Time: %{customdata}s<br>VO2: %{x}<br>VCO2: %{y}<extra></extra>"
+        }
+      ], {
+        title: "V-Slope (主视图)",
+        xaxis: { title: "VO2 (mL/min)" },
+        yaxis: { title: "VCO2 (mL/min)" },
+        shapes: [diag, ...cursorShape],
+        hovermode: "closest"
+      });
+
+      Plotly.newPlot("panel6-main", [
+        { x: panel6.time_sec, y: panel6.ve_vo2, mode: "lines", name: "VE/VO2", line: { color: "green" } },
+        { x: panel6.time_sec, y: panel6.ve_vco2, mode: "lines", name: "VE/VCO2", line: { color: "blue" } }
+      ], {
+        title: "Panel 6 (主视图)",
+        xaxis: { title: "Time (s)" },
+        yaxis: { title: "Ratio" },
+        hovermode: "x unified",
+        shapes: cursorShape
+      });
+
+      Plotly.newPlot("panel9-main", [
+        { x: panel9.time_sec, y: panel9.peto2, mode: "lines", name: "PetO2", line: { color: "#ff7f0e" } },
+        { x: panel9.time_sec, y: panel9.petco2, mode: "lines", name: "PetCO2", line: { color: "#9467bd" } }
+      ], {
+        title: "Panel 9 (主视图)",
+        xaxis: { title: "Time (s)" },
+        yaxis: { title: "Pressure" },
+        hovermode: "x unified",
+        shapes: cursorShape
+      });
+
+      const linkCursor = (divId, usesCustomData=false) => {
+        const div = document.getElementById(divId);
+        div.on("plotly_hover", (evt) => {
+          const time = usesCustomData ? evt?.points?.[0]?.customdata : evt?.points?.[0]?.x;
+          if (time !== undefined) {
+            updateCursor(time);
+            highlightVslope(time);
+          }
+        });
+      };
+      linkCursor("panel6-main");
+      linkCursor("panel9-main");
+      linkCursor("vslope-main", true);
+
+      // 初始化游标到中位时间（延后到缩略图渲染后再统一 relayout）
+      if (cursorTime === null && vslope.time_sec && vslope.time_sec.length) {
+        cursorTime = vslope.time_sec[Math.floor(vslope.time_sec.length / 2)];
+      }
+    }
+
+    function updateCursor(timeSec) {
+      cursorTime = timeSec;
+      const timeShape = [{
+        type: "line",
+        x0: timeSec,
+        x1: timeSec,
+        y0: 0,
+        y1: 1,
+        xref: "x",
+        yref: "paper",
+        line: { color: "black", dash: "dash" }
+      }];
+
+      // Time-based panels
+      ["panel6-main","panel9-main","p1","p2","p3","p6","p8","p9"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          Plotly.relayout(el, { shapes: timeShape }).catch(() => {});
+        }
+      });
+
+      // V-Slope panels: highlight nearest point (no vertical line)
+      const vslope = currentData?.views?.panel5 || currentData?.views?.vslope;
+      if (vslope && Array.isArray(vslope.time_sec) && Array.isArray(vslope.vo2) && vslope.time_sec.length) {
+        let nearestIdx = 0;
+        let bestDiff = Math.abs(vslope.time_sec[0] - timeSec);
+        vslope.time_sec.forEach((t, idx) => {
+          const d = Math.abs(t - timeSec);
+          if (d < bestDiff) {
+            bestDiff = d;
+            nearestIdx = idx;
+          }
+        });
+        Plotly.restyle("vslope-main", { selectedpoints: [nearestIdx] }).catch(() => {});
+        Plotly.restyle("p5", { selectedpoints: [nearestIdx] }).catch(() => {});
+      }
+
+      // Non-time scatter panels (panel4, panel7): highlight nearest point by time via customdata
+      const highlightScatter = (id, viewKey) => {
+        const view = currentData?.views?.[viewKey];
+        if (!view || !Array.isArray(view.time_sec) || !view.time_sec.length) return;
+        let idxSel = 0;
+        let diffBest = Math.abs(view.time_sec[0] - timeSec);
+        view.time_sec.forEach((t, idx) => {
+          const d = Math.abs(t - timeSec);
+          if (d < diffBest) {
+            diffBest = d;
+            idxSel = idx;
+          }
+        });
+        Plotly.restyle(id, { selectedpoints: [idxSel] }).catch(() => {});
+      };
+      highlightScatter("p4", "panel4");
+      highlightScatter("p7", "panel7");
+
+      highlightVslope(timeSec);
+      document.getElementById("at-input").value = Math.round(timeSec);
+    }
+
+    function highlightVslope(timeSec) {
+      if (!currentData?.views?.panel5 && !currentData?.views?.vslope) return;
+      const vslope = currentData.views.panel5 || currentData.views.vslope;
+      const times = vslope.time_sec || [];
+      if (!times.length) return;
+      let nearestIdx = 0;
+      let bestDiff = Math.abs(times[0] - timeSec);
+      times.forEach((t, idx) => {
+        const d = Math.abs(t - timeSec);
+        if (d < bestDiff) {
+          bestDiff = d;
+          nearestIdx = idx;
+        }
+      });
+      Plotly.restyle("vslope-main", { selectedpoints: [nearestIdx] }).catch(() => {});
+      Plotly.restyle("p5", { selectedpoints: [nearestIdx] }).catch(() => {});
+    }
+
+    function renderThumbnails() {
+      if (!currentData || !currentData.views) return;
+      const specs = [
+        { key: "panel1", id: "p1", title: "Panel1 VE vs Time", traces: (v) => [{ x: v.time_sec, y: v.ve, mode: "lines", name: "VE" }], timeHover: true },
+        { key: "panel2", id: "p2", title: "Panel2 HR vs Time", traces: (v) => [{ x: v.time_sec, y: v.hr, mode: "lines", name: "HR", line: { color: "#d62728" } }], timeHover: true },
+        { key: "panel3", id: "p3", title: "Panel3 VO2 vs Time", traces: (v) => [{ x: v.time_sec, y: v.vo2, mode: "lines", name: "VO2" }], timeHover: true },
+        { key: "panel4", id: "p4", title: "Panel4 VO2 vs VCO2", traces: (v) => [{ x: v.vo2, y: v.vco2, customdata: v.time_sec, mode: "lines+markers", marker: { size: 4 }, name: "VCO2" }], timeHover: true },
+        { key: "panel5", id: "p5", title: "Panel5 V-Slope", traces: (v) => [{ x: v.vo2, y: v.vco2, customdata: v.time_sec, mode: "lines+markers", marker: { size: 4 }, name: "VCO2" }], timeHover: true },
+        { key: "panel6", id: "p6", title: "Panel6 VE/VO2 & VE/VCO2", traces: (v) => [{ x: v.time_sec, y: v.ve_vo2, mode: "lines", name: "VE/VO2", line: { color: "green" } }, { x: v.time_sec, y: v.ve_vco2, mode: "lines", name: "VE/VCO2", line: { color: "blue" } }], timeHover: true },
+        { key: "panel7", id: "p7", title: "Panel7 VT vs VE", traces: (v) => [{ x: v.ve, y: v.vt, customdata: v.time_sec, mode: "lines+markers", marker: { size: 4 }, name: "VT" }], timeHover: true },
+        { key: "panel8", id: "p8", title: "Panel8 RER vs Time", traces: (v) => [{ x: v.time_sec, y: v.rer, mode: "lines", name: "RER", line: { color: "#ff7f0e" } }], timeHover: true },
+        { key: "panel9", id: "p9", title: "Panel9 PetO2 / PetCO2", traces: (v) => [{ x: v.time_sec, y: v.peto2, mode: "lines", name: "PetO2", line: { color: "#ff7f0e" } }, { x: v.time_sec, y: v.petco2, mode: "lines", name: "PetCO2", line: { color: "#9467bd" } }], timeHover: true },
+      ];
+
+      specs.forEach(spec => {
+        const view = currentData.views[spec.key] || {};
+        const traces = spec.traces(view);
+        const shapes = (cursorTime !== null && spec.timeHover) ? [{
+          type: "line",
+          x0: cursorTime,
+          x1: cursorTime,
+          y0: 0,
+          y1: 1,
+          xref: "x",
+          yref: "paper",
+          line: { color: "black", dash: "dash" }
+        }] : [];
+        Plotly.newPlot(spec.id, traces, {
+          title: spec.title,
+          margin: { l: 40, r: 10, t: 30, b: 30 },
+          hovermode: spec.timeHover ? "x unified" : "closest",
+          shapes
+        }, { displayModeBar: false, responsive: true });
+        const div = document.getElementById(spec.id);
+        div.on("plotly_hover", (evt) => {
+          const t = evt?.points?.[0]?.x ?? evt?.points?.[0]?.customdata;
+          if (t !== undefined) {
+            updateCursor(t);
+          }
+        });
+      });
+
+      // 缩略图绘制完后，如果已有游标时间，补一次同步红线
+      if (cursorTime !== null) {
+        updateCursor(cursorTime);
+      }
+    }
+
+    function renderTable() {
+      const table = document.getElementById("data-table");
+      table.innerHTML = "";
+      if (!currentData || !currentData.table) return;
+      const headers = ["Time(s)", "Phase", "Load(W)", "VO2", "VCO2", "RER", "VE/VO2", "VE/VCO2", "PetO2", "PetCO2", "HR", "VE"];
+      const keys = ["Time", "Load_Phase", "Power_Load", "VO2", "VCO2", "RER", "VE_VO2", "VE_VCO2", "PetO2", "PetCO2", "HR", "VE"];
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      headers.forEach(h => {
+        const th = document.createElement("th");
+        th.textContent = h;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      const tbody = document.createElement("tbody");
+      currentData.table.slice(0, 400).forEach(row => {
+        const tr = document.createElement("tr");
+        keys.forEach(k => {
+          const td = document.createElement("td");
+          const val = row[k];
+          td.textContent = val === null || val === undefined ? "" : (typeof val === "number" ? val.toFixed(2) : val);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+    }
+
+    async function saveAnnotation() {
+      if (!currentExam) return;
+      const role = document.getElementById("role-select").value;
+      const atVal = parseFloat(document.getElementById("at-input").value);
+      const smooth = document.getElementById("smooth-select").value;
+      const res = await fetch(`${API_BASE}/exams/${currentExam}/annotations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role,
+          reader_id: role.toUpperCase(),
+          at_time_sec: atVal,
+          smoothing: smooth,
+          notes: ""
+        })
+      });
+      const data = await res.json();
+      const status = document.getElementById("status");
+      status.textContent = `状态: ${data.status} (δ=${data.delta_sec}s, T_GT=${data.t_gt ?? "-"})`;
+    }
+
+    async function updateConsensus() {
+      if (!currentExam) return;
+      const res = await fetch(`${API_BASE}/exams/${currentExam}/consensus`);
+      const data = await res.json();
+      const status = document.getElementById("status");
+      status.textContent = `状态: ${data.status} (δ=${data.delta_sec}s, T_GT=${data.t_gt ?? "-"})`;
+    }
+
+    document.getElementById("exam-select").addEventListener("change", (e) => loadExam(e.target.value));
+    document.getElementById("smooth-select").addEventListener("change", () => {
+      if (currentExam) loadExam(currentExam);
+    });
+    document.getElementById("save-btn").addEventListener("click", saveAnnotation);
+
+    fetchExams();
+  </script>
+</body>
+</html>
