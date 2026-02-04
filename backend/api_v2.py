@@ -1031,17 +1031,21 @@ async def opencode_proxy(path: str, request: Request):
 # ---------- 静态文件 ----------
 
 frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
-v2_dir = frontend_dir / "v2"
-v2_dist_dir = v2_dir / "dist"
-v2_dev_server = os.environ.get("V2_DEV_SERVER")
-v2_dev_root = os.environ.get("V2_DEV_ROOT", "").lower() in {"1", "true", "yes"}
-if frontend_dir.exists():
-    app.mount("/app", StaticFiles(directory=frontend_dir, html=True), name="app")
-if v2_dist_dir.exists() and not v2_dev_server:
-    app.mount("/v2", StaticFiles(directory=v2_dist_dir, html=True), name="v2")
+frontend_dist_dir = frontend_dir / "dist"
+tools_dir = Path(__file__).resolve().parent.parent / "tools"
+dev_server = os.environ.get("FRONTEND_DEV_SERVER")
+dev_root = os.environ.get("FRONTEND_DEV_ROOT", "").lower() in {"1", "true", "yes"}
 
-async def _proxy_to_v2_dev(path: str, request: Request) -> StreamingResponse:
-    base = v2_dev_server.rstrip("/")
+# 挂载工具页面 (AT 标注/回放)
+if tools_dir.exists():
+    app.mount("/tools", StaticFiles(directory=tools_dir, html=True), name="tools")
+
+# 挂载前端 dist
+if frontend_dist_dir.exists() and not dev_server:
+    app.mount("/app", StaticFiles(directory=frontend_dist_dir, html=True), name="app")
+
+async def _proxy_to_dev(path: str, request: Request) -> StreamingResponse:
+    base = dev_server.rstrip("/")
     target = f"{base}/{path}" if path else f"{base}/"
     if request.url.query:
         target = f"{target}?{request.url.query}"
@@ -1057,7 +1061,7 @@ async def _proxy_to_v2_dev(path: str, request: Request) -> StreamingResponse:
         resp = await client.send(req, stream=True)
     except httpx.RequestError as exc:
         await client.aclose()
-        raise HTTPException(status_code=502, detail=f"V2 dev proxy error: {exc}") from exc
+        raise HTTPException(status_code=502, detail=f"Frontend dev proxy error: {exc}") from exc
 
     async def stream_body():
         try:
@@ -1074,20 +1078,20 @@ async def _proxy_to_v2_dev(path: str, request: Request) -> StreamingResponse:
     )
 
 
-if v2_dev_server:
+if dev_server:
     @app.api_route(
-        "/v2/{path:path}",
+        "/app/{path:path}",
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
-    async def v2_dev_proxy(path: str, request: Request):
-        return await _proxy_to_v2_dev(path, request)
+    async def frontend_dev_proxy(path: str, request: Request):
+        return await _proxy_to_dev(path, request)
 
 
 @app.get("/", include_in_schema=False)
 async def root(request: Request):
     """根路径重定向到前端"""
-    if v2_dev_server and v2_dev_root:
-        return await _proxy_to_v2_dev("", request)
-    if v2_dist_dir.exists():
-        return RedirectResponse(url="/v2/")
-    return {"message": "CPET Clinical Assistant API v2", "docs": "/api/docs"}
+    if dev_server and dev_root:
+        return await _proxy_to_dev("", request)
+    if frontend_dist_dir.exists():
+        return RedirectResponse(url="/app/")
+    return {"message": "Heartwise API", "docs": "/api/docs"}
