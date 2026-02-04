@@ -648,7 +648,7 @@ function App() {
     const context = buildContext(session.agentId ?? selectedAgentId, session.artifacts);
     const apiBase = import.meta.env.VITE_API_BASE ?? '';
     try {
-      const response = await fetch(`${apiBase}/api/v2/agent/ask`, {
+      const response = await fetch(`${apiBase}/api/agent/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -706,7 +706,7 @@ function App() {
     const apiBase = import.meta.env.VITE_API_BASE ?? '';
     adjustPending(sessionId, 1);
     try {
-      const response = await fetch(`${apiBase}/api/v2/agent/ask`, {
+      const response = await fetch(`${apiBase}/api/agent/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

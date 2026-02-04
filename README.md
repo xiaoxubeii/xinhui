@@ -21,7 +21,7 @@ heartwise/
 │   ├── agents/           # OpenCode Agent 定义
 │   └── opencode.jsonc    # OpenCode 配置
 ├── backend/              # FastAPI 后端
-│   ├── api_v2.py         # 主 API
+│   ├── api.py         # 主 API
 │   ├── inference/        # AT/VO2 预测模型
 │   ├── prescription/     # 运动处方生成
 │   ├── reports/          # PDF 报告生成
@@ -64,7 +64,7 @@ cd frontend && npm run build
 
 ```bash
 # 启动后端（同时托管前端）
-cd backend && uvicorn api_v2:app --reload --port 8000
+cd backend && uvicorn api:app --reload --port 8000
 ```
 
 访问：
@@ -78,13 +78,13 @@ cd backend && uvicorn api_v2:app --reload --port 8000
 
 ```bash
 # 终端 1: 启动后端
-cd backend && uvicorn api_v2:app --reload --port 8000
+cd backend && uvicorn api:app --reload --port 8000
 
 # 终端 2: 启动前端开发服务器
 cd frontend && npm run dev
 
 # 或者让后端代理到前端开发服务器
-FRONTEND_DEV_SERVER=http://localhost:5173 uvicorn api_v2:app --reload --port 8000
+FRONTEND_DEV_SERVER=http://localhost:5173 uvicorn api:app --reload --port 8000
 ```
 
 ## URL 路由
@@ -94,7 +94,7 @@ FRONTEND_DEV_SERVER=http://localhost:5173 uvicorn api_v2:app --reload --port 800
 | `/` | 重定向到 `/app/` |
 | `/app/` | 前端应用 |
 | `/tools/` | AT 标注/回放工具 |
-| `/api/v2/` | REST API |
+| `/api/` | REST API |
 | `/api/docs` | Swagger 文档 |
 | `/api/ws/` | WebSocket |
 

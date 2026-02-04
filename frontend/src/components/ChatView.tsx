@@ -218,7 +218,7 @@ export function ChatView({
     try {
       const apiBase = import.meta.env.VITE_API_BASE ?? '';
       const endpoint =
-        pdfSuggestion === 'prescription' ? '/api/v2/prescription/pdf' : '/api/v2/reports/generate';
+        pdfSuggestion === 'prescription' ? '/api/prescription/pdf' : '/api/reports/generate';
       const response = await fetch(`${apiBase}${endpoint}`, {
         method: 'POST',
         headers: {

@@ -41,7 +41,7 @@ from .reports.pdf_generator import PDFReportGenerator, CPETReport, CPETTestResul
 app = FastAPI(
     title="CPET 临床辅助系统",
     description="实时 AT 预测、VO2 Peak 预测、运动处方生成",
-    version="2.0.0",
+    version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -252,7 +252,7 @@ class AgentAskResponse(BaseModel):
 
 # ==================== API 端点 ====================
 
-@app.get("/api/v2/health")
+@app.get("/api/health")
 def health_check():
     """健康检查"""
     return {
@@ -270,7 +270,7 @@ async def realtime_websocket(websocket: WebSocket, session_id: str):
     await websocket_endpoint(websocket, session_id)
 
 
-@app.post("/api/v2/sessions")
+@app.post("/api/sessions")
 async def create_session(request: SessionCreateRequest):
     """创建实时预测会话"""
     from uuid import uuid4
@@ -299,7 +299,7 @@ async def create_session(request: SessionCreateRequest):
     }
 
 
-@app.get("/api/v2/sessions/{session_id}")
+@app.get("/api/sessions/{session_id}")
 def get_session(session_id: str):
     """获取会话状态"""
     summary = realtime_manager.get_session_summary(session_id)
@@ -308,7 +308,7 @@ def get_session(session_id: str):
     return summary
 
 
-@app.post("/api/v2/predict/at")
+@app.post("/api/predict/at")
 def predict_at_batch(data_points: List[CPETDataRequest]):
     """批量 AT 预测"""
     if not data_points:
@@ -352,7 +352,7 @@ def predict_at_batch(data_points: List[CPETDataRequest]):
     }
 
 
-@app.post("/api/v2/infer/sequence")
+@app.post("/api/infer/sequence")
 def infer_sequence(request: InferSequenceRequest):
     """按序列推理 PaceFormer 输出"""
     if not request.data_points:
@@ -392,7 +392,7 @@ def infer_sequence(request: InferSequenceRequest):
     }
 
 
-@app.post("/api/v2/infer/exam")
+@app.post("/api/infer/exam")
 def infer_exam(request: InferExamRequest):
     """从 H5 读取 exam 并推理"""
     try:
@@ -429,7 +429,7 @@ def infer_exam(request: InferExamRequest):
 
 # ---------- VO2 Peak 预测 ----------
 
-@app.post("/api/v2/predict/vo2peak")
+@app.post("/api/predict/vo2peak")
 def predict_vo2_peak(request: VO2PredictionRequest):
     """预测 VO2 Peak"""
     prediction = vo2_predictor.predict(
@@ -459,7 +459,7 @@ def predict_vo2_peak(request: VO2PredictionRequest):
 
 # ---------- 风险分层 ----------
 
-@app.post("/api/v2/risk/stratify")
+@app.post("/api/risk/stratify")
 def stratify_risk(
     exercise_test: ExerciseTestRequest,
     non_exercise_test: NonExerciseTestRequest,
@@ -499,7 +499,7 @@ def stratify_risk(
 
 # ---------- 运动处方 ----------
 
-@app.post("/api/v2/prescription/generate")
+@app.post("/api/prescription/generate")
 def generate_prescription(request: PrescriptionRequest):
     """生成运动处方"""
     patient, cpet, ex_results, non_ex_results = _build_prescription_inputs(request)
@@ -578,7 +578,7 @@ def generate_prescription(request: PrescriptionRequest):
 
 # ---------- 报告生成 ----------
 
-@app.post("/api/v2/reports/generate")
+@app.post("/api/reports/generate")
 def generate_report(request: PrescriptionRequest):
     """生成 PDF 报告"""
     global pdf_generator
@@ -658,7 +658,7 @@ def generate_report(request: PrescriptionRequest):
     )
 
 
-@app.post("/api/v2/prescription/pdf")
+@app.post("/api/prescription/pdf")
 def generate_prescription_pdf(request: PrescriptionRequest):
     """生成运动处方 PDF"""
     global pdf_generator
@@ -906,7 +906,7 @@ def _call_agent(messages: List[Dict[str, str]]) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Agent API failure: {exc}") from exc
 
 
-@app.post("/api/v2/agent/ask", response_model=AgentAskResponse)
+@app.post("/api/agent/ask", response_model=AgentAskResponse)
 def agent_ask(request: AgentAskRequest):
     cfg = _resolve_agent_settings()
     system_prompt = cfg.get("system_prompt") or (

@@ -47,7 +47,7 @@ dev = [
 
 [project.scripts]
 heartwise = "backend.main:run"
-heartwise-api = "backend.api_v2:run"
+heartwise-api = "backend.api:run"
 
 [tool.setuptools.packages.find]
 where = ["."]
