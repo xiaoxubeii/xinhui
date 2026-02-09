@@ -1,4 +1,4 @@
-# 心衡智问 - Heartwise
+# 心慧智问 - Xinhui
 
 临床运动评估与健康平台
 
@@ -16,7 +16,7 @@
 
 ```bash
 cd backend
-uvicorn api_v2:app --reload --port 8000
+uvicorn api:app --reload --port 8000
 ```
 
 ### 前端开发

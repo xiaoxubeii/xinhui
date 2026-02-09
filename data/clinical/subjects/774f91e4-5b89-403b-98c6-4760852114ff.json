@@ -1,0 +1,13 @@
+{
+  "patient_id": "774f91e4-5b89-403b-98c6-4760852114ff",
+  "name": null,
+  "sex": "unknown",
+  "age": null,
+  "height_cm": null,
+  "weight_kg": null,
+  "diagnosis": [],
+  "linked_device_ids": [],
+  "notes": null,
+  "created_at": "2026-02-08T14:57:16.070967Z",
+  "updated_at": "2026-02-08T14:57:16.070967Z"
+}

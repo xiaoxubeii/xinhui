@@ -10,6 +10,8 @@ class Settings:
 
     def __init__(self) -> None:
         base_dir = Path(__file__).resolve().parent
+        repo_root = base_dir.parent
+        data_root_default = repo_root / "data"
         default_data = Path(
             "/home/cheng/workspace/cpetx_workspace/cpet_former/artifacts/dataset/processed/processed_institutes.h5"
         )
@@ -70,6 +72,23 @@ class Settings:
         self.opencode_directory: Path = Path(
             os.environ.get("OPENCODE_DIRECTORY", base_dir.parent)
         ).expanduser()
+
+        # ---- Xinhui app (auth/chat/artifacts) ----
+        self.data_root: Path = Path(
+            os.environ.get("XINHUI_DATA_ROOT") or data_root_default
+        ).expanduser()
+        self.app_db_path: Path = Path(
+            os.environ.get("XINHUI_DB_PATH") or (self.data_root / "xinhui.db")
+        ).expanduser()
+        # In production you MUST set XINHUI_JWT_SECRET. We fall back to a dev secret to keep local
+        # demos easy, but this is not safe for public deployments.
+        self.jwt_secret: str = os.environ.get("XINHUI_JWT_SECRET") or "dev-secret-change-me"
+        # API key hashing secret (defaults to JWT secret if not provided).
+        self.api_key_secret: str = os.environ.get("XINHUI_API_KEY_SECRET") or self.jwt_secret
+        self.token_ttl_days: int = int(os.environ.get("XINHUI_TOKEN_TTL_DAYS") or "7")
+        self.cookie_secure: bool = (os.environ.get("XINHUI_COOKIE_SECURE") or "").strip() in {"1", "true", "True"}
+        self.max_upload_mb: int = int(os.environ.get("XINHUI_MAX_UPLOAD_MB") or "20")
+
         cors = os.environ.get("CPET_CORS_ORIGINS", "*")
         if cors.strip() == "*":
             self.cors_origins: List[str] = ["*"]

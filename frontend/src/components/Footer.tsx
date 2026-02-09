@@ -12,7 +12,7 @@ export function Footer() {
         本系统为临床辅助建议，不能替代医生诊断
       </p>
       <p className="text-xs text-gray-400">
-        © 2026 心衡智问
+        © 2026 心慧智问
       </p>
       <div className="flex items-center justify-center gap-4 mt-2">
         <a 

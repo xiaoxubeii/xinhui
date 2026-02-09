@@ -1,0 +1,58 @@
+{
+  "entry_id": "2f4d8db6-95df-491f-9508-6bff9458920f",
+  "device_id": "1665A2C8-7F18-4A0C-8FF5-A0F183F5D1FA",
+  "created_at": "2026-02-08T16:30:43.103001Z",
+  "eaten_at": "2026-02-08T16:30:21Z",
+  "meal_type": "dinner",
+  "items": [
+    {
+      "name": "米饭",
+      "portion": "一碗",
+      "grams": 150.0,
+      "calories_kcal": 130.0,
+      "protein_g": 3.0,
+      "carbs_g": 28.0,
+      "fat_g": 0.5,
+      "confidence": 0.9
+    },
+    {
+      "name": "番茄炒蛋",
+      "portion": "一碗",
+      "grams": 180.0,
+      "calories_kcal": 160.0,
+      "protein_g": 10.0,
+      "carbs_g": 10.0,
+      "fat_g": 8.0,
+      "confidence": 0.85
+    },
+    {
+      "name": "青椒肉丝",
+      "portion": "一碗",
+      "grams": 160.0,
+      "calories_kcal": 180.0,
+      "protein_g": 14.0,
+      "carbs_g": 8.0,
+      "fat_g": 10.0,
+      "confidence": 0.8
+    },
+    {
+      "name": "汤",
+      "portion": "一碗",
+      "grams": 200.0,
+      "calories_kcal": 50.0,
+      "protein_g": 5.0,
+      "carbs_g": 4.0,
+      "fat_g": 2.0,
+      "confidence": 0.7
+    }
+  ],
+  "totals": {
+    "calories_kcal": 520.0,
+    "protein_g": 32.0,
+    "carbs_g": 50.0,
+    "fat_g": 20.5
+  },
+  "notes": "",
+  "source": "vision",
+  "warnings": []
+}

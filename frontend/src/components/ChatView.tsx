@@ -9,7 +9,9 @@ import {
   FileText,
   FileUp,
   Plus,
+  Square,
   Watch,
+  X,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -45,8 +47,11 @@ interface ChatViewProps {
   placeholder?: string;
   onSend: (content: string) => void;
   onUpload?: (files: FileList | null) => void;
+  onRemoveUpload?: (id: string) => void;
+  onStop?: () => void;
   uploadedFiles?: { id: string; name: string; status: string }[];
   isThinking?: boolean;
+  streamingContent?: string;
   pdfSuggestion?: 'report' | 'prescription' | null;
   pdfDefaults?: {
     payload: Record<string, unknown>;
@@ -64,8 +69,11 @@ export function ChatView({
   placeholder,
   onSend,
   onUpload,
+  onRemoveUpload,
+  onStop,
   uploadedFiles,
   isThinking,
+  streamingContent,
   pdfSuggestion,
   pdfDefaults,
   onDismissPdfSuggestion,
@@ -73,6 +81,7 @@ export function ChatView({
   const [inputValue, setInputValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfFileName, setPdfFileName] = useState<string>('cpet_report.pdf');
@@ -165,16 +174,34 @@ export function ChatView({
       <div className="mt-0.5 w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
         <Bot className="w-4 h-4 text-gray-500" />
       </div>
-      <div className="rounded-2xl bg-gray-100 text-gray-600 px-4 py-3 text-sm flex items-center gap-2">
-        <span>思考中</span>
-        <span className="flex items-center gap-1">
-          <span className="thinking-dot" />
-          <span className="thinking-dot delay-1" />
-          <span className="thinking-dot delay-2" />
-        </span>
+      <div className="rounded-2xl bg-gray-100 text-gray-600 px-4 py-3 text-sm max-w-[80%]">
+        {streamingContent ? (
+          <div className="markdown-body">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {streamingContent}
+            </ReactMarkdown>
+            <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span>思考中</span>
+            <span className="flex items-center gap-1">
+              <span className="thinking-dot" />
+              <span className="thinking-dot delay-1" />
+              <span className="thinking-dot delay-2" />
+            </span>
+          </div>
+        )}
       </div>
     </div>
   ) : null;
+
+  // Auto-scroll to bottom when new messages or streaming content
+  useEffect(() => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+    }
+  }, [messages, streamingContent, isThinking]);
 
   const resetPdfPreview = () => {
     if (pdfUrl) {
@@ -266,7 +293,7 @@ export function ChatView({
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-28">
+      <div className="flex-1 overflow-y-auto px-6 pt-6 pb-28 chat-scroll-container" ref={scrollContainerRef}>
         <div className="max-w-[760px] mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -579,10 +606,23 @@ export function ChatView({
                 {uploadedFiles.map((file) => (
                   <span
                     key={file.id}
-                    className="px-2 py-1 rounded-full bg-gray-100 text-gray-600"
+                    className="relative inline-flex items-center px-2 py-1 rounded-full pr-5 bg-gray-100 text-gray-600"
                   >
                     {file.name}
                     {file.status === 'parsed' ? ' · 已解析' : file.status === 'failed' ? ' · 失败' : ' · 已上传'}
+                    {onRemoveUpload && (
+                      <button
+                        type="button"
+                        title="删除"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onRemoveUpload(file.id);
+                        }}
+                        className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </span>
                 ))}
               </div>
@@ -713,17 +753,18 @@ export function ChatView({
                 </DropdownMenu>
 
                 <motion.button
-                  whileHover={{ scale: 1.05, backgroundColor: inputValue ? '#333' : '#000' }}
+                  whileHover={{ scale: 1.05, backgroundColor: isThinking ? '#ef4444' : inputValue ? '#333' : '#000' }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={handleSend}
+                  onClick={isThinking ? onStop : handleSend}
                   className={`
-                    w-8 h-8 flex items-center justify-center rounded-full 
+                    w-8 h-8 flex items-center justify-center rounded-full
                     transition-colors duration-150
-                    ${inputValue ? 'bg-black text-white' : 'bg-gray-200 text-gray-400'}
+                    ${isThinking ? 'bg-red-500 text-white' : inputValue ? 'bg-black text-white' : 'bg-gray-200 text-gray-400'}
                   `}
-                  disabled={!inputValue}
+                  disabled={!isThinking && !inputValue}
+                  title={isThinking ? '停止生成' : '发送'}
                 >
-                  <ArrowUp className="w-4 h-4" />
+                  {isThinking ? <Square className="w-3 h-3" /> : <ArrowUp className="w-4 h-4" />}
                 </motion.button>
               </div>
             </div>

@@ -5,6 +5,7 @@ import {
   Plus,
   Clock,
   Info,
+  FolderOpen,
   MessageSquare,
   User,
   Heart,
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-export type AgentId = 'clinical' | 'report' | 'prescription' | 'health' | 'diet' | 'analysis';
+export type AgentId = 'report' | 'analysis' | 'health' | 'diet' | 'clinical' | 'prescription';
 
 interface AgentNavItem {
   id: AgentId;
@@ -60,8 +61,8 @@ const SidebarItem = ({ icon, label, badge, shortcut, active, disabled, collapsed
       <>
         <span className="flex-1 text-left">{label}</span>
         {badge && (
-          <Badge 
-            variant="secondary" 
+          <Badge
+            variant="secondary"
             className="text-[10px] px-1.5 py-0 h-4 bg-blue-50 text-blue-500 border-0 font-normal"
           >
             {badge}
@@ -89,10 +90,12 @@ const SidebarSection = ({ title, children, collapsed }: { title?: string; childr
 
 interface SidebarProps {
   agents: AgentNavItem[];
-  selectedAgentId: AgentId | null;
+  activeAgentId: AgentId;
+  activeView?: 'chat' | 'library' | 'account';
   sessions: SessionSummary[];
   activeSessionId: string | null;
   onSelectAgent: (id: AgentId) => void;
+  onSelectView?: (view: 'chat' | 'library' | 'account') => void;
   onNewSession: () => void;
   onSelectSession: (id: string) => void;
   collapsed?: boolean;
@@ -100,20 +103,22 @@ interface SidebarProps {
 }
 
 const sessionBadgeMap: Record<AgentId, string> = {
-  clinical: '临床',
   report: '报告',
-  prescription: '处方',
+  analysis: '分析',
   health: '健康',
   diet: '食疗',
-  analysis: '分析',
+  clinical: '临床',
+  prescription: '处方',
 };
 
 export function Sidebar({
   agents,
-  selectedAgentId,
+  activeAgentId,
+  activeView = 'chat',
   sessions,
   activeSessionId,
   onSelectAgent,
+  onSelectView,
   onNewSession,
   onSelectSession,
   collapsed,
@@ -200,7 +205,7 @@ export function Sidebar({
 
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-2">
-        <SidebarSection collapsed={collapsed}>
+        <SidebarSection title="领域入口" collapsed={collapsed}>
           {agents.map((agent) => (
             <SidebarItem
               key={agent.id}
@@ -208,20 +213,25 @@ export function Sidebar({
               label={agent.label}
               badge={agent.tag}
               collapsed={collapsed}
-              active={selectedAgentId === agent.id}
+              active={activeView === 'chat' && activeAgentId === agent.id}
               onClick={() => onSelectAgent(agent.id)}
             />
           ))}
         </SidebarSection>
 
+        <SidebarSection title="资料库" collapsed={collapsed}>
+          <SidebarItem
+            icon={<FolderOpen className="w-4 h-4" />}
+            label="我的上传"
+            collapsed={collapsed}
+            active={activeView === 'library'}
+            onClick={() => onSelectView?.('library')}
+          />
+        </SidebarSection>
+
         <SidebarSection title="历史会话" collapsed={collapsed}>
           {sessions.length === 0 ? (
-            <SidebarItem
-              icon={<Clock className="w-4 h-4" />}
-              label="暂无历史会话"
-              disabled
-              collapsed={collapsed}
-            />
+            <SidebarItem icon={<Clock className="w-4 h-4" />} label="暂无历史会话" disabled collapsed={collapsed} />
           ) : (
             sessions.map((session) => (
               <SidebarItem
@@ -243,7 +253,13 @@ export function Sidebar({
         <SidebarSection collapsed={collapsed}>
           <SidebarItem icon={<Info className="w-4 h-4" />} label="使用说明" collapsed={collapsed} />
           <SidebarItem icon={<MessageSquare className="w-4 h-4" />} label="用户反馈" collapsed={collapsed} />
-          <SidebarItem icon={<User className="w-4 h-4" />} label="账号与合规" collapsed={collapsed} />
+          <SidebarItem
+            icon={<User className="w-4 h-4" />}
+            label="账号与合规"
+            collapsed={collapsed}
+            active={activeView === 'account'}
+            onClick={() => onSelectView?.('account')}
+          />
         </SidebarSection>
       </div>
     </motion.aside>

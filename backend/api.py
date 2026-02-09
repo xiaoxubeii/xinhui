@@ -26,6 +26,12 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import settings
+from .app_db import init_app_db
+from .auth.api import router as auth_router
+from .auth.security import get_current_user_from_request
+from .artifacts.api import router as artifacts_router
+from .api_keys.api import router as api_keys_router
+from .chat.api import router as chat_router
 from .realtime.websocket import realtime_manager, websocket_endpoint, SessionConfig
 from .inference.at_predictor import CPETDataPoint
 from .inference.vo2_predictor import VO2PeakPredictor, WeberClass
@@ -54,6 +60,114 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def _startup_init_db() -> None:
+    # Auth/chat/artifacts DB
+    init_app_db(settings.app_db_path)
+
+
+# Ensure the app DB exists even when lifespan events are not triggered (e.g. some test clients).
+init_app_db(settings.app_db_path)
+
+
+_AUTH_EXEMPT_PREFIXES = (
+    "/api/auth/login",
+    "/api/auth/register",
+    "/api/docs",
+    "/api/redoc",
+    "/api/openapi.json",
+)
+
+
+@app.middleware("http")
+async def _auth_gate(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api") and path != "/api/health" and not any(path.startswith(p) for p in _AUTH_EXEMPT_PREFIXES):
+        try:
+            user = get_current_user_from_request(request)
+            request.state.user = user
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+    return await call_next(request)
+
+
+# Auth / Artifacts / Chat
+app.include_router(auth_router)
+app.include_router(api_keys_router)
+app.include_router(artifacts_router)
+app.include_router(chat_router)
+
+# 注册 RAG API 路由
+try:
+    from .rag.api import router as rag_router
+    app.include_router(rag_router)
+except ImportError:
+    pass  # RAG module not available
+
+# 注册工具 API 路由
+try:
+    from .tools.api import router as tools_router
+    app.include_router(tools_router)
+except ImportError:
+    pass  # Tools module not available
+
+# 注册 MCP Server 路由
+try:
+    from .tools.mcp_server import router as mcp_router
+    app.include_router(mcp_router)
+except ImportError:
+    pass  # MCP module not available
+
+# 注册 HealthKit 数据同步路由
+try:
+    from .healthkit.api import router as healthkit_router
+    app.include_router(healthkit_router)
+except ImportError:
+    pass  # HealthKit module not available
+
+# 注册 Diet 识别与饮食记录路由
+try:
+    from .diet.api import router as diet_router
+    app.include_router(diet_router)
+except ImportError:
+    pass  # Diet module not available
+
+# 注册 Clinical 临床记录路由
+try:
+    from .clinical.api import router as clinical_router
+    app.include_router(clinical_router)
+except ImportError:
+    pass  # Clinical module not available
+
+# 注册 Lifestyle 生活数据聚合路由
+try:
+    from .lifestyle.api import router as lifestyle_router
+    app.include_router(lifestyle_router)
+except ImportError:
+    pass  # Lifestyle module not available
+
+# 注册 Health 健康域路由
+try:
+    from .health.api import router as health_router
+    app.include_router(health_router)
+except ImportError:
+    pass  # Health module not available
+
+# 注册 Exercise 运动域路由
+try:
+    from .exercise.api import router as exercise_router
+    app.include_router(exercise_router)
+except ImportError:
+    pass  # Exercise module not available
+
+# 注册 Nutrition 饮食域路由（对齐数据域命名）
+try:
+    from .nutrition.api import router as nutrition_router
+    app.include_router(nutrition_router)
+except ImportError:
+    pass  # Nutrition module not available
 
 # 初始化服务
 at_predictor = realtime_manager.at_predictor
@@ -906,30 +1020,40 @@ def _call_agent(messages: List[Dict[str, str]]) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Agent API failure: {exc}") from exc
 
 
+# ---------- RAG 知识库 ----------
+
+_retriever_instance = None
+
+
+def _get_retriever():
+    """Get or create knowledge retriever instance."""
+    global _retriever_instance
+    if _retriever_instance is None:
+        try:
+            from .rag import KnowledgeRetriever
+            db_path = Path(__file__).resolve().parent.parent / "data" / "vector_db"
+            if db_path.exists():
+                _retriever_instance = KnowledgeRetriever(db_path)
+        except ImportError:
+            pass
+    return _retriever_instance
+
+
+def _retrieve_context(question: str, top_k: int = 3) -> str:
+    """Retrieve relevant knowledge for a question."""
+    retriever = _get_retriever()
+    if retriever and retriever.is_ready():
+        return retriever.retrieve_with_context(question, top_k=top_k, max_context_length=1500)
+    return ""
+
+
 @app.post("/api/agent/ask", response_model=AgentAskResponse)
 def agent_ask(request: AgentAskRequest):
-    cfg = _resolve_agent_settings()
-    system_prompt = cfg.get("system_prompt") or (
-        "You are a clinical CPET assistant. Answer strictly based on the provided JSON context. "
-        "If the answer is not in the context, say you do not know. "
-        "Be concise, professional, and avoid making definitive diagnoses."
-    )
-    messages: List[Dict[str, str]] = [{"role": "system", "content": system_prompt}]
-    history = request.history[-6:] if request.history else []
-    for msg in history:
-        messages.append({"role": msg.role, "content": msg.content})
-    context_str = json.dumps(request.context, ensure_ascii=False)
-    user_content = f"Context (JSON):\n{context_str}\n\nQuestion:\n{request.question}"
-    messages.append({"role": "user", "content": user_content})
+    from .agent_service import ask_agent
 
-    result = _call_agent(messages)
-    answer = (
-        result.get("choices", [{}])[0]
-        .get("message", {})
-        .get("content", "")
-        .strip()
-    )
-    return AgentAskResponse(answer=answer or "暂无可用回答。", model=cfg["model"])
+    history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
+    result = ask_agent(question=request.question, context=request.context, history=history)
+    return AgentAskResponse(answer=result.get("answer") or "暂无可用回答。", model=result.get("model") or "unknown")
 
 
 # ---------- OpenCode 代理 ----------
@@ -1094,4 +1218,30 @@ async def root(request: Request):
         return await _proxy_to_dev("", request)
     if frontend_dist_dir.exists():
         return RedirectResponse(url="/app/")
-    return {"message": "Heartwise API", "docs": "/api/docs"}
+    return {"message": "Xinhui API", "docs": "/api/docs"}
+
+
+if dev_server:
+    @app.api_route(
+        "/{path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        include_in_schema=False,
+    )
+    async def frontend_dev_fallback(path: str, request: Request):
+        if path.startswith(("api", "tools", "app")):
+            raise HTTPException(status_code=404, detail="Not found")
+        return await _proxy_to_dev(path, request)
+
+
+def run() -> None:
+    """Console entry point (used by pyproject [project.scripts])."""
+    import uvicorn
+
+    host = os.environ.get("XINHUI_HOST") or os.environ.get("HOST") or "127.0.0.1"
+    port_raw = os.environ.get("XINHUI_PORT") or os.environ.get("PORT") or "8000"
+    try:
+        port = int(port_raw)
+    except Exception:
+        port = 8000
+
+    uvicorn.run("backend.api:app", host=host, port=port, reload=False)

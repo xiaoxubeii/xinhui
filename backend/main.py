@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import os
 from pathlib import Path
 from typing import List, Optional
 
@@ -205,3 +206,17 @@ def root() -> FileResponse:
     if not index_file.exists():
         raise HTTPException(status_code=404, detail="frontend not found")
     return FileResponse(index_file)
+
+
+def run() -> None:
+    """Console entry point (used by pyproject [project.scripts])."""
+    import uvicorn
+
+    host = os.environ.get("XINHUI_ANNOTATE_HOST") or os.environ.get("HOST") or "127.0.0.1"
+    port_raw = os.environ.get("XINHUI_ANNOTATE_PORT") or os.environ.get("PORT") or "8001"
+    try:
+        port = int(port_raw)
+    except Exception:
+        port = 8001
+
+    uvicorn.run("backend.main:app", host=host, port=port, reload=False)

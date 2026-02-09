@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import type { KeyboardEvent } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Bot, ChevronDown, ArrowUp } from 'lucide-react';
+import { Plus, Bot, ChevronDown, ArrowUp, Sparkles, X } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +16,15 @@ interface SearchBoxProps {
   onSubmit: (value: string) => void;
   onUpload?: (files: FileList | null) => void;
   uploadedFiles?: { id: string; name: string; status: string }[];
+  onRemoveUpload?: (id: string) => void;
 }
+
+const EXAMPLE_PROMPTS = [
+  '分析这份 CPET 报告的关键指标',
+  '根据数据生成运动处方',
+  '评估患者的运动风险等级',
+  '解读 VO2peak 和无氧阈数据',
+];
 
 export function SearchBox({
   placeholder,
@@ -25,9 +33,28 @@ export function SearchBox({
   onSubmit,
   onUpload,
   uploadedFiles,
+  onRemoveUpload,
 }: SearchBoxProps) {
   const [inputValue, setInputValue] = useState('');
+  const [currentExample, setCurrentExample] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Rotate example prompts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentExample((prev) => (prev + 1) % EXAMPLE_PROMPTS.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [inputValue]);
 
   const handleSend = () => {
     const trimmed = inputValue.trim();
@@ -45,6 +72,11 @@ export function SearchBox({
     }
   };
 
+  const handleExampleClick = () => {
+    setInputValue(EXAMPLE_PROMPTS[currentExample]);
+    textareaRef.current?.focus();
+  };
+
   return (
     <motion.div
       initial={{ y: 20, opacity: 0 }}
@@ -54,9 +86,10 @@ export function SearchBox({
     >
       <div
         className={`
-          relative flex flex-col gap-4 p-6 
-          bg-transparent rounded-3xl border 
+          relative flex flex-col gap-4 p-6
+          bg-transparent rounded-3xl border
           transition-all duration-200 border-gray-200
+          focus-within:border-gray-300 focus-within:shadow-sm
         `}
       >
         {uploadedFiles && uploadedFiles.length > 0 && (
@@ -64,10 +97,29 @@ export function SearchBox({
             {uploadedFiles.map((file) => (
               <span
                 key={file.id}
-                className="px-2 py-1 rounded-full bg-gray-100 text-gray-600"
+                className={`relative inline-flex items-center px-2 py-1 rounded-full pr-5 ${
+                  file.status === 'parsed'
+                    ? 'bg-green-50 text-green-700'
+                    : file.status === 'failed'
+                    ? 'bg-red-50 text-red-700'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
               >
                 {file.name}
                 {file.status === 'parsed' ? ' · 已解析' : file.status === 'failed' ? ' · 失败' : ' · 已上传'}
+                {onRemoveUpload && (
+                  <button
+                    type="button"
+                    title="删除"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRemoveUpload(file.id);
+                    }}
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 flex items-center justify-center"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </span>
             ))}
           </div>
@@ -75,18 +127,32 @@ export function SearchBox({
 
         {/* Input Area */}
         <textarea
+          ref={textareaRef}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder ?? '上传 CPET 报告或输入问题…'}
           className="
-            w-full min-h-[40px] max-h-[200px] 
-            bg-transparent text-base text-gray-900 
+            w-full min-h-[40px] max-h-[200px]
+            bg-transparent text-base text-gray-900
             placeholder:text-gray-400 resize-none
             outline-none border-0 p-0
           "
           rows={1}
         />
+
+        {/* Example prompt hint */}
+        {!inputValue && (
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={handleExampleClick}
+            className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors self-start"
+          >
+            <Sparkles className="w-3 h-3" />
+            <span>试试：{EXAMPLE_PROMPTS[currentExample]}</span>
+          </motion.button>
+        )}
 
         {/* Bottom Controls */}
         <div className="flex items-center justify-between">
@@ -112,7 +178,7 @@ export function SearchBox({
                 event.currentTarget.value = '';
               }}
             />
-            
+
             <motion.button
               whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 0, 0, 0.04)' }}
               whileTap={{ scale: 0.98 }}
@@ -157,7 +223,7 @@ export function SearchBox({
               whileTap={{ scale: 0.95 }}
               onClick={handleSend}
               className={`
-                w-8 h-8 flex items-center justify-center rounded-full 
+                w-8 h-8 flex items-center justify-center rounded-full
                 transition-colors duration-150
                 ${inputValue ? 'bg-black text-white' : 'bg-gray-200 text-gray-400'}
               `}
@@ -167,6 +233,11 @@ export function SearchBox({
             </motion.button>
           </div>
         </div>
+      </div>
+
+      {/* Keyboard hint */}
+      <div className="mt-2 text-center text-xs text-gray-400">
+        按 Enter 发送，Shift + Enter 换行
       </div>
     </motion.div>
   );

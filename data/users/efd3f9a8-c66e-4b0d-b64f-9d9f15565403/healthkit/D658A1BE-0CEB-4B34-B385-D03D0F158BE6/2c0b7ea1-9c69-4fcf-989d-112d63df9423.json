@@ -1,0 +1,37 @@
+{
+  "sync_id": "2c0b7ea1-9c69-4fcf-989d-112d63df9423",
+  "device_id": "D658A1BE-0CEB-4B34-B385-D03D0F158BE6",
+  "synced_at": "2026-02-08T16:47:02.205803Z",
+  "data": {
+    "device_id": "D658A1BE-0CEB-4B34-B385-D03D0F158BE6",
+    "sync_start": "2026-01-09T16:40:30Z",
+    "sync_end": "2026-02-08T16:40:30Z",
+    "daily_steps": [],
+    "heart_rate_samples": [],
+    "resting_heart_rates": [],
+    "spo2_readings": [],
+    "sleep_sessions": [],
+    "workouts": [
+      {
+        "start_time": "2026-02-08T16:13:55Z",
+        "end_time": "2026-02-08T16:43:55Z",
+        "activity_type": "other",
+        "duration_seconds": 1800.0,
+        "total_energy_kcal": 5.0,
+        "total_distance_meters": null,
+        "avg_heart_rate": null,
+        "max_heart_rate": null
+      },
+      {
+        "start_time": "2026-02-08T16:14:34Z",
+        "end_time": "2026-02-08T16:44:34Z",
+        "activity_type": "walking",
+        "duration_seconds": 1800.0,
+        "total_energy_kcal": 5.0,
+        "total_distance_meters": 2500.0,
+        "avg_heart_rate": null,
+        "max_heart_rate": null
+      }
+    ]
+  }
+}
