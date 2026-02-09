@@ -1,4 +1,4 @@
-# Heartwise - 心衡智问
+# Xinhui - 心慧智问
 
 临床运动评估与健康平台
 
@@ -16,7 +16,7 @@
 ## 项目结构
 
 ```
-heartwise/
+xinhui/
 ├── .opencode/
 │   ├── agents/           # OpenCode Agent 定义
 │   └── opencode.jsonc    # OpenCode 配置
@@ -42,6 +42,7 @@ heartwise/
 ```bash
 cp .env.example .env
 # 编辑 .env 填入 API Key 和数据路径
+# 生产环境务必设置强随机的 XINHUI_JWT_SECRET
 ```
 
 ### 2. 安装依赖
@@ -72,6 +73,9 @@ cd backend && uvicorn api:app --reload --port 8000
 - **API 文档**: http://localhost:8000/api/docs
 - **工具页面**: http://localhost:8000/tools/
 
+说明：
+- 现在 **必须注册/登录** 后才能使用智能体与数据接口。
+
 ### 开发模式
 
 前后端分离开发：
@@ -98,6 +102,15 @@ FRONTEND_DEV_SERVER=http://localhost:5173 uvicorn api:app --reload --port 8000
 | `/api/docs` | Swagger 文档 |
 | `/api/ws/` | WebSocket |
 
+## 数据域与联动
+
+后端按数据域存储与提供接口，便于 iOS / Web / Agent 共享同一份“事实数据”：
+
+- `HealthKit`（日常/运动/健康数据同步）：`/api/healthkit/*`（数据落地 `data/healthkit/<device_id>/`）
+- `Diet`（拍照识别 + 饮食记账）：`/api/diet/*`（数据落地 `data/diet/<device_id>/`）
+- `Clinical`（临床记录，CPET 报告是一种临床记录）：`/api/clinical/*`（数据落地 `data/clinical/`）
+- `Lifestyle`（聚合层：把 Diet + HealthKit 按天汇总给看板/智能体）：`/api/lifestyle/*`
+
 ## 技术栈
 
 - **后端**: FastAPI + Python 3.10+
@@ -108,3 +121,4 @@ FRONTEND_DEV_SERVER=http://localhost:5173 uvicorn api:app --reload --port 8000
 ## License
 
 MIT
+# huixin
