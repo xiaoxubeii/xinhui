@@ -130,6 +130,42 @@ final class APIClient {
         return try decodeJSON(DietSummaryResponse.self, from: data)
     }
 
+    // MARK: - Dashboard & Plans
+
+    func fetchDashboardSummary(deviceId: String, start: String, end: String) async throws -> DashboardSummaryResponse {
+        var url = effectiveBaseURL().appendingPathComponent("dashboard/summary/\(deviceId)")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "start", value: start),
+            URLQueryItem(name: "end", value: end),
+        ]
+        if let newURL = components?.url { url = newURL }
+        let data = try await performJSONRequest(url: url, method: "GET", body: nil, timeout: 30)
+        return try decodeJSON(DashboardSummaryResponse.self, from: data)
+    }
+
+    func fetchExercisePlan(deviceId: String, date: String) async throws -> ExercisePlanResponse {
+        var url = effectiveBaseURL().appendingPathComponent("plans/exercise/\(deviceId)")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "date", value: date),
+        ]
+        if let newURL = components?.url { url = newURL }
+        let data = try await performJSONRequest(url: url, method: "GET", body: nil, timeout: 30)
+        return try decodeJSON(ExercisePlanResponse.self, from: data)
+    }
+
+    func fetchNutritionPlan(deviceId: String, date: String) async throws -> NutritionPlanResponse {
+        var url = effectiveBaseURL().appendingPathComponent("plans/nutrition/\(deviceId)")
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "date", value: date),
+        ]
+        if let newURL = components?.url { url = newURL }
+        let data = try await performJSONRequest(url: url, method: "GET", body: nil, timeout: 30)
+        return try decodeJSON(NutritionPlanResponse.self, from: data)
+    }
+
     // MARK: - Agent
 
     func askAgent(_ payload: AgentAskRequest) async throws -> AgentAskResponse {

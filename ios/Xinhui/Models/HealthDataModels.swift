@@ -43,3 +43,207 @@ struct SyncProgress {
         return min(done / total, 1.0)
     }
 }
+
+// MARK: - Dashboard Summary
+
+struct DashboardSummaryResponse: Codable {
+    let today: DashboardTodayMetrics?
+    let trend7d: [DashboardTrendPoint]?
+    let trend30d: [DashboardTrendPoint]?
+    let balance: EnergyBalance?
+    let targets: HealthTargets?
+
+    enum CodingKeys: String, CodingKey {
+        case today
+        case trend7d = "trend_7d"
+        case trend30d = "trend_30d"
+        case balance
+        case targets
+    }
+}
+
+struct DashboardTodayMetrics: Codable {
+    let steps: Int?
+    let latestHeartRate: Double?
+    let latestSpO2: Double?
+    let sleepHours: Double?
+    let intakeKcal: Double?
+    let burnedKcal: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case steps
+        case latestHeartRate = "latest_heart_rate"
+        case latestSpO2 = "latest_spo2"
+        case sleepHours = "sleep_hours"
+        case intakeKcal = "intake_kcal"
+        case burnedKcal = "burned_kcal"
+    }
+}
+
+struct DashboardTrendPoint: Codable, Identifiable {
+    let date: String
+    let steps: Int?
+    let sleepHours: Double?
+    let intakeKcal: Double?
+    let burnedKcal: Double?
+
+    var id: String { date }
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case steps
+        case sleepHours = "sleep_hours"
+        case intakeKcal = "intake_kcal"
+        case burnedKcal = "burned_kcal"
+    }
+}
+
+struct EnergyBalance: Codable {
+    let date: String?
+    let deltaKcal: Double?
+    let weeklyAvgKcal: Double?
+    let targetDeltaKcal: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case deltaKcal = "delta_kcal"
+        case weeklyAvgKcal = "weekly_avg_kcal"
+        case targetDeltaKcal = "target_delta_kcal"
+    }
+}
+
+struct HealthTargets: Codable {
+    let stepsTarget: Int?
+    let sleepHoursTarget: Double?
+    let intakeKcalTarget: Double?
+    let burnedKcalTarget: Double?
+    let energyDeltaTarget: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case stepsTarget = "steps_target"
+        case sleepHoursTarget = "sleep_hours_target"
+        case intakeKcalTarget = "intake_kcal_target"
+        case burnedKcalTarget = "burned_kcal_target"
+        case energyDeltaTarget = "energy_delta_target"
+    }
+}
+
+// MARK: - Plans
+
+struct ExercisePlanResponse: Codable {
+    let planId: String?
+    let title: String?
+    let summary: String?
+    let sessions: [ExerciseSession]
+    let goals: ExerciseGoals?
+    let generatedAt: String?
+    let validFrom: String?
+    let validTo: String?
+
+    enum CodingKeys: String, CodingKey {
+        case planId = "plan_id"
+        case title
+        case summary
+        case sessions
+        case goals
+        case generatedAt = "generated_at"
+        case validFrom = "valid_from"
+        case validTo = "valid_to"
+    }
+}
+
+struct ExerciseSession: Codable, Identifiable {
+    let id: UUID = UUID()
+    let type: String?
+    let durationMin: Double?
+    let intensity: String?
+    let kcalEst: Double?
+    let notes: String?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case durationMin = "duration_min"
+        case intensity
+        case kcalEst = "kcal_est"
+        case notes
+    }
+}
+
+struct ExerciseGoals: Codable {
+    let stepsTarget: Int?
+    let minutesTarget: Double?
+    let kcalTarget: Double?
+    let hrZone: String?
+
+    enum CodingKeys: String, CodingKey {
+        case stepsTarget = "steps_target"
+        case minutesTarget = "minutes_target"
+        case kcalTarget = "kcal_target"
+        case hrZone = "hr_zone"
+    }
+}
+
+struct NutritionPlanResponse: Codable {
+    let planId: String?
+    let title: String?
+    let summary: String?
+    let macros: NutritionMacros?
+    let meals: [NutritionMeal]
+    let constraints: NutritionConstraints?
+    let generatedAt: String?
+    let validFrom: String?
+    let validTo: String?
+
+    enum CodingKeys: String, CodingKey {
+        case planId = "plan_id"
+        case title
+        case summary
+        case macros
+        case meals
+        case constraints
+        case generatedAt = "generated_at"
+        case validFrom = "valid_from"
+        case validTo = "valid_to"
+    }
+}
+
+struct NutritionMacros: Codable {
+    let kcal: Double?
+    let proteinG: Double?
+    let carbsG: Double?
+    let fatG: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case kcal
+        case proteinG = "protein_g"
+        case carbsG = "carbs_g"
+        case fatG = "fat_g"
+    }
+}
+
+struct NutritionMeal: Codable, Identifiable {
+    let id: UUID = UUID()
+    let mealType: String?
+    let kcal: Double?
+    let foods: [String]?
+
+    enum CodingKeys: String, CodingKey {
+        case mealType = "meal_type"
+        case kcal
+        case foods
+    }
+}
+
+struct NutritionConstraints: Codable {
+    let lowSugar: Bool?
+    let lowSalt: Bool?
+    let highFiber: Bool?
+    let notes: String?
+
+    enum CodingKeys: String, CodingKey {
+        case lowSugar = "low_sugar"
+        case lowSalt = "low_salt"
+        case highFiber = "high_fiber"
+        case notes
+    }
+}
