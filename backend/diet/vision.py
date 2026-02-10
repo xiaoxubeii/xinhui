@@ -89,19 +89,9 @@ def recognize_food(
     base = cfg.base_url.rstrip("/")
     parsed = urlparse(base)
     root = f"{parsed.scheme}://{parsed.netloc}"
-    candidates = [
-        f"{base}/assistant-api/v1/chat/completions",
-        f"{base}/v1/chat/completions",
-        f"{base}/chat/completions",
-    ]
+    session_url = f"{base}/session"
     if base != root:
-        candidates.extend(
-            [
-                f"{root}/assistant-api/v1/chat/completions",
-                f"{root}/v1/chat/completions",
-                f"{root}/chat/completions",
-            ]
-        )
+        session_url = f"{root}/session"
 
     locale_str = locale or "zh-CN"
 
@@ -137,17 +127,14 @@ def recognize_food(
     )
 
     payload: Dict[str, Any] = {
-        "model": cfg.model,
-        "temperature": cfg.temperature,
-        "max_tokens": cfg.max_tokens,
-        "messages": [
-            {"role": "system", "content": system_prompt},
+        "system": system_prompt,
+        "parts": [
+            {"type": "text", "text": user_prompt},
             {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_prompt},
-                    {"type": "image_url", "image_url": {"url": _data_url(image_mime, image_bytes)}},
-                ],
+                "type": "file",
+                "mime": image_mime,
+                "filename": "meal",
+                "url": _data_url(image_mime, image_bytes),
             },
         ],
     }
@@ -160,28 +147,45 @@ def recognize_food(
     data = None
     last_error: Exception | None = None
     with httpx.Client(timeout=cfg.timeout, follow_redirects=True) as client:
-        for url in candidates:
-            try:
-                resp = client.post(url, headers=headers, json=payload)
-                content_type = resp.headers.get("content-type") or ""
-                if resp.status_code >= 400:
-                    resp.raise_for_status()
-                if "text/html" in content_type:
-                    raise ValueError("OpenCode API returned HTML")
-                data = resp.json()
-                break
-            except Exception as exc:
-                last_error = exc
-                continue
+        try:
+            session_resp = client.post(session_url, headers=headers, json={"title": "diet-vision"})
+            session_resp.raise_for_status()
+            session = session_resp.json()
+            session_id = session.get("id") or session.get("session_id")
+            if not session_id:
+                raise ValueError("OpenCode session id missing")
+            msg_url = f"{session_url}/{session_id}/message"
+            resp = client.post(msg_url, headers=headers, json=payload)
+            content_type = resp.headers.get("content-type") or ""
+            if resp.status_code >= 400:
+                resp.raise_for_status()
+            if "text/html" in content_type:
+                raise ValueError("OpenCode API returned HTML")
+            data = resp.json()
+        except Exception as exc:
+            last_error = exc
 
     if data is None:
         raise ValueError(f"OpenCode vision call failed: {last_error}")
 
-    content = (
-        data.get("choices", [{}])[0]
-        .get("message", {})
-        .get("content", "")
-    )
+    parts = data.get("parts") if isinstance(data, dict) else None
+    content = ""
+    if isinstance(parts, list):
+        content = "".join(
+            part.get("text", "")
+            for part in parts
+            if isinstance(part, dict) and part.get("type") == "text"
+        )
+    if not content and isinstance(data, dict):
+        info = data.get("info")
+        if isinstance(info, dict):
+            msg_parts = info.get("parts")
+            if isinstance(msg_parts, list):
+                content = "".join(
+                    part.get("text", "")
+                    for part in msg_parts
+                    if isinstance(part, dict) and part.get("type") == "text"
+                )
     json_str = _extract_json(content or "")
     parsed = json.loads(json_str)
 
