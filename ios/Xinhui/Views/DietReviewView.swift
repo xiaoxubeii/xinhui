@@ -50,6 +50,7 @@ private struct EditableFoodItem: Identifiable {
 
 struct DietReviewView: View {
     let image: UIImage
+    let planId: String?
     let onSaved: () -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -243,7 +244,8 @@ struct DietReviewView: View {
                 eatenAt: eatenAt,
                 mealType: mealType,
                 items: editableItems.map { $0.toAPIItem() },
-                notes: notes
+                notes: notes,
+                planId: planId
             )
             onSaved()
             dismiss()

@@ -60,7 +60,13 @@ struct SettingsView: View {
                     .disabled(viewModel.apiKey.isEmpty)
                 }
 
-                Section("同步") {
+                Section("手动同步") {
+                    NavigationLink("数据同步") {
+                        SyncView()
+                    }
+                }
+
+                Section("自动同步") {
                     Toggle("打开 App 自动同步", isOn: $viewModel.autoSyncEnabled)
                         .onChange(of: viewModel.autoSyncEnabled) { isOn in
                             viewModel.saveAutoSyncEnabled()

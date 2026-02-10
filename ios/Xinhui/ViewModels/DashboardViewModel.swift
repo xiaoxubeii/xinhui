@@ -12,6 +12,8 @@ final class DashboardViewModel: ObservableObject {
     @Published var lastSleepHours: Double?
     @Published var todayIntakeKcal: Double?
     @Published var todayBurnedKcal: Double?
+    @Published var todayWorkoutMinutes: Double?
+    @Published var todayNutritionTotals: NutritionTotals?
     @Published var trend7d: [DashboardTrendPoint] = []
     @Published var trend30d: [DashboardTrendPoint] = []
     @Published var energyBalance: EnergyBalance?
@@ -70,6 +72,10 @@ final class DashboardViewModel: ObservableObject {
 
             // Workout energy (today)
             if let workouts = try? await healthKit.fetchWorkouts(start: startOfDay, end: now) {
+                let totalSeconds = workouts.reduce(0.0) { acc, w in
+                    acc + w.durationSeconds
+                }
+                todayWorkoutMinutes = totalSeconds > 0 ? totalSeconds / 60.0 : nil
                 let kcal = workouts.reduce(0.0) { acc, w in
                     acc + (w.totalEnergyKcal ?? 0.0)
                 }
@@ -82,10 +88,12 @@ final class DashboardViewModel: ObservableObject {
             let today = DateFormatters.dateOnly.string(from: now)
             let summary = try await api.fetchDietSummary(deviceId: deviceId, start: today, end: today)
             todayIntakeKcal = summary.totals.caloriesKcal
+            todayNutritionTotals = summary.totals
         } catch {
             if todayIntakeKcal == nil {
                 todayIntakeKcal = nil
             }
+            todayNutritionTotals = nil
         }
 
         // Dashboard summary (trend + targets + balance)

@@ -10,12 +10,12 @@ struct ContentView: View {
 
             DietView()
                 .tabItem {
-                    Label("饮食", systemImage: "fork.knife")
+                    Label("营养", systemImage: "fork.knife")
                 }
 
-            SyncView()
+            ExerciseView()
                 .tabItem {
-                    Label("同步", systemImage: "arrow.triangle.2.circlepath")
+                    Label("运动", systemImage: "figure.run")
                 }
 
             HealthDataView()

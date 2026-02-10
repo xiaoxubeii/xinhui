@@ -5,9 +5,11 @@ import UIKit
 @MainActor
 final class DietViewModel: ObservableObject {
     @Published var deviceId: String = ""
+    @Published var userId: String = ""
     @Published var todayTotals: NutritionTotals = .zero
     @Published var recentEntries: [DietEntry] = []
     @Published var last7Days: [DietDailySummary] = []
+    @Published var nutritionPlan: NutritionPlanResponse?
     @Published var isLoading = false
     @Published var currentError: SyncError?
 
@@ -48,6 +50,22 @@ final class DietViewModel: ObservableObject {
         } catch {
             currentError = .networkError(underlying: error)
         }
+
+        let today = DateFormatters.dateOnly.string(from: now)
+        var planOwnerId = deviceId
+        do {
+            let me = try await api.fetchMe()
+            userId = me.id
+            planOwnerId = me.id
+        } catch {
+            userId = ""
+        }
+
+        do {
+            nutritionPlan = try await api.fetchNutritionPlan(deviceId: planOwnerId, date: today)
+        } catch {
+            nutritionPlan = nil
+        }
     }
 
     func recognize(image: UIImage) async throws -> DietRecognizeResponse {
@@ -70,7 +88,8 @@ final class DietViewModel: ObservableObject {
         eatenAt: Date,
         mealType: MealType,
         items: [DietFoodItem],
-        notes: String?
+        notes: String?,
+        planId: String?
     ) async throws -> DietCreateEntryResponse {
         let payload = DietCreateEntryRequest(
             deviceId: DeviceIdentifier.current,
@@ -78,7 +97,8 @@ final class DietViewModel: ObservableObject {
             mealType: mealType,
             items: items,
             notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-            source: "vision"
+            source: "vision",
+            planId: planId
         )
         return try await api.createDietEntry(payload)
     }

@@ -106,9 +106,19 @@ struct DashboardView: View {
                     )
                     .padding(.horizontal)
 
-                    PlanSection(
-                        exercisePlan: viewModel.exercisePlan,
-                        nutritionPlan: viewModel.nutritionPlan
+                    PlanCompletionSection(
+                        exerciseItems: PlanProgressBuilder.exerciseItems(
+                            plan: viewModel.exercisePlan,
+                            todaySteps: viewModel.todaySteps,
+                            workoutMinutes: viewModel.todayWorkoutMinutes,
+                            burnedKcal: viewModel.todayBurnedKcal
+                        ),
+                        nutritionItems: PlanProgressBuilder.nutritionItems(
+                            plan: viewModel.nutritionPlan,
+                            totals: viewModel.todayNutritionTotals
+                        ),
+                        hasExercisePlan: viewModel.exercisePlan != nil,
+                        hasNutritionPlan: viewModel.nutritionPlan != nil
                     )
                     .padding(.horizontal)
 
@@ -372,177 +382,57 @@ private struct TrendRow: View {
     }
 }
 
-private struct PlanSection: View {
-    let exercisePlan: ExercisePlanResponse?
-    let nutritionPlan: NutritionPlanResponse?
+private struct PlanCompletionSection: View {
+    let exerciseItems: [PlanProgressItem]
+    let nutritionItems: [PlanProgressItem]
+    let hasExercisePlan: Bool
+    let hasNutritionPlan: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("处方与规划")
+            Text("计划完成度")
                 .font(.headline)
 
-            NavigationLink(destination: ExercisePlanView(plan: exercisePlan)) {
-                PlanCard(
-                    title: "运动处方",
-                    subtitle: exercisePlan?.summary ?? "暂无处方，稍后再试",
-                    iconName: "figure.run",
-                    color: .pink
-                )
-            }
-            .buttonStyle(.plain)
+            PlanCompletionCard(
+                title: "运动完成情况",
+                items: exerciseItems,
+                emptyText: hasExercisePlan ? "暂无目标" : "暂无处方"
+            )
 
-            NavigationLink(destination: NutritionPlanView(plan: nutritionPlan)) {
-                PlanCard(
-                    title: "营养规划",
-                    subtitle: nutritionPlan?.summary ?? "暂无规划，稍后再试",
-                    iconName: "leaf.fill",
-                    color: .green
-                )
-            }
-            .buttonStyle(.plain)
+            PlanCompletionCard(
+                title: "营养完成情况",
+                items: nutritionItems,
+                emptyText: hasNutritionPlan ? "暂无目标" : "暂无规划"
+            )
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(12)
-        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
 
-private struct PlanCard: View {
+private struct PlanCompletionCard: View {
     let title: String
-    let subtitle: String
-    let iconName: String
-    let color: Color
+    let items: [PlanProgressItem]
+    let emptyText: String
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconName)
-                .foregroundColor(color)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                Text(subtitle)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            if items.isEmpty {
+                Text(emptyText)
                     .font(.caption)
                     .foregroundColor(.secondary)
-                    .lineLimit(2)
+            } else {
+                ForEach(items) { item in
+                    PlanProgressRow(item: item)
+                }
             }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.footnote)
-                .foregroundColor(.secondary)
         }
         .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemBackground))
         .cornerRadius(12)
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
-    }
-}
-
-private struct ExercisePlanView: View {
-    let plan: ExercisePlanResponse?
-
-    var body: some View {
-        List {
-            Section(header: Text("摘要")) {
-                Text(plan?.summary ?? "暂无处方")
-            }
-
-            if let goals = plan?.goals {
-                Section(header: Text("目标")) {
-                    if let steps = goals.stepsTarget { Text("步数目标：\(steps) 步") }
-                    if let minutes = goals.minutesTarget { Text(String(format: "运动时长：%.0f 分钟", minutes)) }
-                    if let kcal = goals.kcalTarget { Text(String(format: "消耗目标：%.0f kcal", kcal)) }
-                    if let hr = goals.hrZone { Text("心率区间：\(hr)") }
-                }
-            }
-
-            if let sessions = plan?.sessions, !sessions.isEmpty {
-                Section(header: Text("处方计划")) {
-                    ForEach(sessions) { session in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(session.type ?? "运动")
-                                .font(.headline)
-                            if let duration = session.durationMin {
-                                Text(String(format: "时长：%.0f 分钟", duration))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            if let intensity = session.intensity {
-                                Text("强度：\(intensity)")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            if let kcal = session.kcalEst {
-                                Text(String(format: "预计消耗：%.0f kcal", kcal))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            if let notes = session.notes, !notes.isEmpty {
-                                Text(notes)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-            }
-        }
-        .navigationTitle(plan?.title ?? "运动处方")
-    }
-}
-
-private struct NutritionPlanView: View {
-    let plan: NutritionPlanResponse?
-
-    var body: some View {
-        List {
-            Section(header: Text("摘要")) {
-                Text(plan?.summary ?? "暂无规划")
-            }
-
-            if let macros = plan?.macros {
-                Section(header: Text("营养目标")) {
-                    if let kcal = macros.kcal { Text(String(format: "热量：%.0f kcal", kcal)) }
-                    if let protein = macros.proteinG { Text(String(format: "蛋白质：%.0f g", protein)) }
-                    if let carbs = macros.carbsG { Text(String(format: "碳水：%.0f g", carbs)) }
-                    if let fat = macros.fatG { Text(String(format: "脂肪：%.0f g", fat)) }
-                }
-            }
-
-            if let constraints = plan?.constraints {
-                Section(header: Text("饮食约束")) {
-                    if let lowSugar = constraints.lowSugar { Text("控糖：\(lowSugar ? "是" : "否")") }
-                    if let lowSalt = constraints.lowSalt { Text("控盐：\(lowSalt ? "是" : "否")") }
-                    if let highFiber = constraints.highFiber { Text("高纤维：\(highFiber ? "是" : "否")") }
-                    if let notes = constraints.notes, !notes.isEmpty { Text(notes) }
-                }
-            }
-
-            if let meals = plan?.meals, !meals.isEmpty {
-                Section(header: Text("餐次建议")) {
-                    ForEach(meals) { meal in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(meal.mealType ?? "餐次")
-                                .font(.headline)
-                            if let kcal = meal.kcal {
-                                Text(String(format: "热量：%.0f kcal", kcal))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            if let foods = meal.foods, !foods.isEmpty {
-                                Text(foods.joined(separator: "、"))
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                }
-            }
-        }
-        .navigationTitle(plan?.title ?? "营养规划")
     }
 }
 

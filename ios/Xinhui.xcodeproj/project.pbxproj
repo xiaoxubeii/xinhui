@@ -35,6 +35,13 @@
 		214C17182F3788A100E2D449 /* HealthDataView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214C16F72F37825A00E2D449 /* HealthDataView.swift */; };
 		214C17192F3788A100E2D449 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214C16F82F37825A00E2D449 /* SettingsView.swift */; };
 		214C171A2F3788A100E2D449 /* SyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214C16F92F37825A00E2D449 /* SyncView.swift */; };
+		E02679AA4E664147A67E2B9A /* PlanProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 393081A2004E4B23AF1591B4 /* PlanProgress.swift */; };
+		6762A0946EB94201B25C9D7F /* ExerciseViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BED0CAF7B332474C8421FBFD /* ExerciseViewModel.swift */; };
+		C370BFFC9829454CB77FE805 /* ExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1720F4E2496645379CC70A9C /* ExerciseView.swift */; };
+		4E86D2D3E0364683A9386646 /* PlanProgressRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C6E2905272F4D12BB414E21 /* PlanProgressRow.swift */; };
+		D7CE57CCE7A445869C556B3B /* PlanCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 588671A2ECF945AA8DE3402A /* PlanCard.swift */; };
+		C8AE8EC68A5F4BBBA7BD383C /* ExercisePlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02A27B2E73474B918459471F /* ExercisePlanView.swift */; };
+		A482AD57B40D4AFABA5CAC7D /* NutritionPlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CAFA87E6FC473AAE5FF0A8 /* NutritionPlanView.swift */; };
 		214C171B2F3788A100E2D449 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 214C16DD2F37825A00E2D449 /* Assets.xcassets */; };
 		5246D66C1CBA4CF2A76A9A13 /* AgentChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECA3ED612E84289833EDCB9 /* AgentChatViewModel.swift */; };
 		5D55412DE122485EBD5350BF /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66138C9BB9FE4C888CFB2F43 /* AgentModels.swift */; };
@@ -70,6 +77,13 @@
 		214C16F72F37825A00E2D449 /* HealthDataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthDataView.swift; sourceTree = "<group>"; };
 		214C16F82F37825A00E2D449 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		214C16F92F37825A00E2D449 /* SyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncView.swift; sourceTree = "<group>"; };
+		393081A2004E4B23AF1591B4 /* PlanProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanProgress.swift; sourceTree = "<group>"; };
+		BED0CAF7B332474C8421FBFD /* ExerciseViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseViewModel.swift; sourceTree = "<group>"; };
+		1720F4E2496645379CC70A9C /* ExerciseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseView.swift; sourceTree = "<group>"; };
+		7C6E2905272F4D12BB414E21 /* PlanProgressRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanProgressRow.swift; sourceTree = "<group>"; };
+		588671A2ECF945AA8DE3402A /* PlanCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCard.swift; sourceTree = "<group>"; };
+		02A27B2E73474B918459471F /* ExercisePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExercisePlanView.swift; sourceTree = "<group>"; };
+		A3CAFA87E6FC473AAE5FF0A8 /* NutritionPlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionPlanView.swift; sourceTree = "<group>"; };
 		214C16FB2F37825A00E2D449 /* Xinhui.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Xinhui.entitlements; sourceTree = "<group>"; };
 		214C16FC2F37825A00E2D449 /* XinhuiApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XinhuiApp.swift; sourceTree = "<group>"; };
 		214C16FD2F37825A00E2D449 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -112,6 +126,7 @@
 				214C16D92F37825A00E2D449 /* DietModels.swift */,
 				214C16DA2F37825A00E2D449 /* HealthDataModels.swift */,
 				214C16DB2F37825A00E2D449 /* SyncPayload.swift */,
+				393081A2004E4B23AF1591B4 /* PlanProgress.swift */,
 				66138C9BB9FE4C888CFB2F43 /* AgentModels.swift */,
 			);
 			path = Models;
@@ -154,6 +169,7 @@
 				214C16E92F37825A00E2D449 /* DashboardViewModel.swift */,
 				6ECA3ED612E84289833EDCB9 /* AgentChatViewModel.swift */,
 				214C16EA2F37825A00E2D449 /* DietViewModel.swift */,
+				BED0CAF7B332474C8421FBFD /* ExerciseViewModel.swift */,
 				214C16EB2F37825A00E2D449 /* SettingsViewModel.swift */,
 				214C16EC2F37825A00E2D449 /* SyncViewModel.swift */,
 			);
@@ -164,22 +180,35 @@
 			isa = PBXGroup;
 			children = (
 				214C16EE2F37825A00E2D449 /* MetricCard.swift */,
+				588671A2ECF945AA8DE3402A /* PlanCard.swift */,
+				7C6E2905272F4D12BB414E21 /* PlanProgressRow.swift */,
 				214C16EF2F37825A00E2D449 /* PermissionRow.swift */,
 				214C16F02F37825A00E2D449 /* SyncProgressView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
 		};
+		EA956FD691CD4AE28E036E7D /* Plans */ = {
+			isa = PBXGroup;
+			children = (
+				02A27B2E73474B918459471F /* ExercisePlanView.swift */,
+				A3CAFA87E6FC473AAE5FF0A8 /* NutritionPlanView.swift */,
+			);
+			path = Plans;
+			sourceTree = "<group>";
+		};
 		214C16FA2F37825A00E2D449 /* Views */ = {
 			isa = PBXGroup;
 			children = (
 				214C16F12F37825A00E2D449 /* Components */,
+				EA956FD691CD4AE28E036E7D /* Plans */,
 				214C16F22F37825A00E2D449 /* ContentView.swift */,
 				214C16F32F37825A00E2D449 /* DashboardView.swift */,
 				DDAA00392E094C579B7C100D /* AgentChatView.swift */,
 				214C16F42F37825A00E2D449 /* DietCaptureView.swift */,
 				214C16F52F37825A00E2D449 /* DietReviewView.swift */,
 				214C16F62F37825A00E2D449 /* DietView.swift */,
+				1720F4E2496645379CC70A9C /* ExerciseView.swift */,
 				214C16F72F37825A00E2D449 /* HealthDataView.swift */,
 				214C16F82F37825A00E2D449 /* SettingsView.swift */,
 				214C16F92F37825A00E2D449 /* SyncView.swift */,
@@ -280,6 +309,7 @@
 				214C17022F3788A100E2D449 /* HealthDataModels.swift in Sources */,
 				214C17032F3788A100E2D449 /* SyncPayload.swift in Sources */,
 				5D55412DE122485EBD5350BF /* AgentModels.swift in Sources */,
+				E02679AA4E664147A67E2B9A /* PlanProgress.swift in Sources */,
 				214C17042F3788A100E2D449 /* APIClient.swift in Sources */,
 				C35C1E0D894246969345F059 /* AgentService.swift in Sources */,
 				214C17052F3788A100E2D449 /* DeviceIdentifier.swift in Sources */,
@@ -291,10 +321,13 @@
 				214C170B2F3788A100E2D449 /* SyncError.swift in Sources */,
 				214C170C2F3788A100E2D449 /* DashboardViewModel.swift in Sources */,
 				214C170D2F3788A100E2D449 /* DietViewModel.swift in Sources */,
+				6762A0946EB94201B25C9D7F /* ExerciseViewModel.swift in Sources */,
 				214C170E2F3788A100E2D449 /* SettingsViewModel.swift in Sources */,
 				214C170F2F3788A100E2D449 /* SyncViewModel.swift in Sources */,
 				5246D66C1CBA4CF2A76A9A13 /* AgentChatViewModel.swift in Sources */,
 				214C17102F3788A100E2D449 /* MetricCard.swift in Sources */,
+				D7CE57CCE7A445869C556B3B /* PlanCard.swift in Sources */,
+				4E86D2D3E0364683A9386646 /* PlanProgressRow.swift in Sources */,
 				214C17112F3788A100E2D449 /* PermissionRow.swift in Sources */,
 				214C17122F3788A100E2D449 /* SyncProgressView.swift in Sources */,
 				214C17132F3788A100E2D449 /* ContentView.swift in Sources */,
@@ -303,6 +336,9 @@
 				214C17152F3788A100E2D449 /* DietCaptureView.swift in Sources */,
 				214C17162F3788A100E2D449 /* DietReviewView.swift in Sources */,
 				214C17172F3788A100E2D449 /* DietView.swift in Sources */,
+				C8AE8EC68A5F4BBBA7BD383C /* ExercisePlanView.swift in Sources */,
+				A482AD57B40D4AFABA5CAC7D /* NutritionPlanView.swift in Sources */,
+				C370BFFC9829454CB77FE805 /* ExerciseView.swift in Sources */,
 				214C17182F3788A100E2D449 /* HealthDataView.swift in Sources */,
 				214C17192F3788A100E2D449 /* SettingsView.swift in Sources */,
 				214C171A2F3788A100E2D449 /* SyncView.swift in Sources */,

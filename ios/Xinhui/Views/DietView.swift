@@ -13,8 +13,36 @@ struct DietView: View {
     @State private var reviewPhoto: CapturedPhoto?
 
     var body: some View {
+        let progressItems = PlanProgressBuilder.nutritionItems(
+            plan: viewModel.nutritionPlan,
+            totals: viewModel.todayTotals
+        )
+
         NavigationView {
             List {
+                Section {
+                    NavigationLink(destination: NutritionPlanView(plan: viewModel.nutritionPlan)) {
+                        PlanCard(
+                            title: "营养规划",
+                            subtitle: viewModel.nutritionPlan?.summary ?? "暂无规划，稍后再试",
+                            iconName: "leaf.fill",
+                            color: .green
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Section("今日完成情况") {
+                    if progressItems.isEmpty {
+                        Text(viewModel.nutritionPlan == nil ? "暂无规划" : "暂无目标")
+                            .foregroundColor(.secondary)
+                    } else {
+                        ForEach(progressItems) { item in
+                            PlanProgressRow(item: item)
+                        }
+                    }
+                }
+
                 Section {
                     HStack(spacing: 12) {
                         MetricCard(
@@ -60,7 +88,7 @@ struct DietView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("饮食管理")
+            .navigationTitle("营养管理")
             .onAppear { viewModel.load() }
             .refreshable { await viewModel.refresh() }
             .alert(
@@ -91,7 +119,7 @@ struct DietView: View {
                 }
             }
             .sheet(item: $reviewPhoto) { photo in
-                DietReviewView(image: photo.image) {
+                DietReviewView(image: photo.image, planId: viewModel.nutritionPlan?.planId) {
                     Task { await viewModel.refresh() }
                 }
             }
