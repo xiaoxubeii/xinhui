@@ -21,8 +21,13 @@ struct ExerciseView: View {
                             iconName: "figure.run",
                             color: .pink
                         )
+                        .padding(.horizontal)
+                        .padding(.vertical, 4)
                     }
                     .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
                 }
 
                 Section("今日完成情况") {

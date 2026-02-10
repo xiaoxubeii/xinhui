@@ -19,13 +19,10 @@ struct PlanCard: View {
                     .lineLimit(2)
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(.footnote)
-                .foregroundColor(.secondary)
         }
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
     }
 }

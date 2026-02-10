@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 enum Constants {
     static let defaultBaseURL = URL(string: "http://58.222.210.226:8000/api")!
@@ -7,6 +8,7 @@ enum Constants {
     static let defaultSyncDays = 30
     static let autoSyncDays = 7
     static let autoSyncMinInterval: TimeInterval = 6 * 3600
+    static let cornerRadius: CGFloat = 12
 
     static let serverURLKey = "xinhui_server_url"
     static let lastSyncDateKey = "xinhui_last_sync"

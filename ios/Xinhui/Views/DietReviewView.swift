@@ -92,7 +92,7 @@ struct DietReviewView: View {
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .clipShape(RoundedRectangle(cornerRadius: Constants.cornerRadius))
                 }
 
                 Section("记录信息") {

@@ -208,7 +208,7 @@ private struct BalanceCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
@@ -237,7 +237,7 @@ private struct TargetsSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
@@ -313,7 +313,7 @@ private struct TrendSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
@@ -431,7 +431,7 @@ private struct PlanCompletionCard: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
     }
 }
@@ -456,7 +456,7 @@ private struct AgentEntryCard: View {
         }
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }

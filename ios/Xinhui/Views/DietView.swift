@@ -28,8 +28,13 @@ struct DietView: View {
                             iconName: "leaf.fill",
                             color: .green
                         )
+                        .padding(.horizontal)
+                        .padding(.vertical, 4)
                     }
                     .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden)
                 }
 
                 Section("今日完成情况") {
@@ -53,6 +58,7 @@ struct DietView: View {
                             color: .orange
                         )
                     }
+                    .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets())
                     .padding(.vertical, 8)
                 }

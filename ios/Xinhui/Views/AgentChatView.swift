@@ -106,7 +106,7 @@ struct AgentChatView: View {
         }
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 
@@ -156,7 +156,7 @@ struct AgentChatView: View {
                         .foregroundColor(.blue)
                         .padding(8)
                         .background(Color(.secondarySystemBackground))
-                        .cornerRadius(8)
+                        .cornerRadius(Constants.cornerRadius)
                 }
 
                 Button {
@@ -167,11 +167,14 @@ struct AgentChatView: View {
                         .foregroundColor(.blue)
                         .padding(8)
                         .background(Color(.secondarySystemBackground))
-                        .cornerRadius(8)
+                        .cornerRadius(Constants.cornerRadius)
                 }
 
                 TextField("输入你的问题…", text: $viewModel.inputText)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
+                    .padding(8)
+                    .background(Color(.secondarySystemBackground))
+                    .cornerRadius(Constants.cornerRadius)
                     .submitLabel(.send)
                     .onSubmit {
                         Task { await viewModel.send(includeContext: includeContext) }
@@ -184,7 +187,7 @@ struct AgentChatView: View {
                         .foregroundColor(.white)
                         .padding(10)
                         .background(Color.blue)
-                        .cornerRadius(10)
+                        .cornerRadius(Constants.cornerRadius)
                 }
                 .disabled(sendDisabled)
             }
@@ -247,7 +250,7 @@ private struct MessageBubble: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(isUser ? Color.blue : Color(.secondarySystemBackground))
-            .cornerRadius(14)
+            .cornerRadius(Constants.cornerRadius)
             .frame(maxWidth: 320, alignment: isUser ? .trailing : .leading)
 
             if !isUser { Spacer(minLength: 40) }
@@ -286,7 +289,7 @@ private struct AttachmentChip: View {
         }
         .padding(6)
         .background(Color(.secondarySystemBackground))
-        .cornerRadius(10)
+        .cornerRadius(Constants.cornerRadius)
     }
 }
 
@@ -328,13 +331,13 @@ private struct AttachmentThumbnail: View {
                 .scaledToFill()
                 .frame(width: size, height: size)
                 .clipped()
-                .cornerRadius(6)
+                .cornerRadius(Constants.cornerRadius)
         } else {
             Image(systemName: "doc.fill")
                 .foregroundColor(tintColor ?? .blue)
                 .frame(width: size, height: size)
                 .background(Color(.tertiarySystemBackground))
-                .cornerRadius(6)
+                .cornerRadius(Constants.cornerRadius)
         }
     }
 }

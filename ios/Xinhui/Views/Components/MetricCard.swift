@@ -28,7 +28,7 @@ struct MetricCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding()
         .background(Color(.systemBackground))
-        .cornerRadius(12)
+        .cornerRadius(Constants.cornerRadius)
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
