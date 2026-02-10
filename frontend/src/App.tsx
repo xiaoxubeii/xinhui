@@ -288,6 +288,7 @@ function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
   const [chatError, setChatError] = useState<{ message: string; at: string } | null>(null);
+  const [planGenerating, setPlanGenerating] = useState(false);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState<'chat' | 'library' | 'plans' | 'account'>('chat');
@@ -608,6 +609,43 @@ function App() {
     }
   };
 
+  const handleGenerateExercisePlan = async () => {
+    if (!me || planGenerating) return;
+    setPlanGenerating(true);
+    setChatError(null);
+    try {
+      const sessionId = activeSessionId ?? (await createNewSession(activeAgentId));
+      const resp = await apiFetch('/api/mcp/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: 'generate_exercise_plan',
+          arguments: {
+            patient_id: me.id,
+            session_id: sessionId,
+            save_plan: true,
+            confirm_plan: false,
+            source_session_id: sessionId,
+          },
+        }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(text || `生成失败 (${resp.status})`);
+      }
+      const data = (await resp.json()) as { error?: string | null };
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+      await loadSessionPlans(sessionId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '生成失败';
+      setChatError({ message: msg, at: new Date().toISOString() });
+    } finally {
+      setPlanGenerating(false);
+    }
+  };
+
   const handleUpload = async (files: FileList | null) => {
     if (!me || !files || files.length === 0) return;
     const sessionId = activeSessionId ?? (await createNewSession(activeAgentId));
@@ -846,6 +884,7 @@ function App() {
             pdfDefaults={null}
             planDrafts={activePlanDrafts}
             onConfirmPlan={handleConfirmPlan}
+            onGenerateExercisePlan={handleGenerateExercisePlan}
           />
         )}
       </main>

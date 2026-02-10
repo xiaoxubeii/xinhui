@@ -5,6 +5,7 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
+  Dumbbell,
   FileText,
   FileUp,
   Plus,
@@ -70,6 +71,7 @@ interface ChatViewProps {
   onDismissPdfSuggestion?: () => void;
   planDrafts?: PlanDraft[];
   onConfirmPlan?: (draftId: string) => void;
+  onGenerateExercisePlan?: () => void;
 }
 
 export function ChatView({
@@ -93,6 +95,7 @@ export function ChatView({
   onDismissPdfSuggestion,
   planDrafts,
   onConfirmPlan,
+  onGenerateExercisePlan,
 }: ChatViewProps) {
   const [inputValue, setInputValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -314,6 +317,11 @@ export function ChatView({
       '请直接调用 MCP 工具 generate_nutrition_plan 生成营养规划；如缺少体重/身高/年龄/性别，请先向我询问后再生成。'
     );
     setInputValue('');
+  };
+
+  const handleGenerateExercisePlan = () => {
+    if (isThinking) return;
+    onGenerateExercisePlan?.();
   };
 
   return (
@@ -716,6 +724,18 @@ export function ChatView({
                     )}
                   </span>
                 </motion.button>
+                {isAnalysis && (
+                  <motion.button
+                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 0, 0, 0.04)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleGenerateExercisePlan}
+                    disabled={isThinking}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-sky-200 text-xs text-sky-700 hover:border-sky-300 transition-colors duration-150 disabled:opacity-50"
+                  >
+                    <Dumbbell className="w-3.5 h-3.5" />
+                    <span>生成运动规划</span>
+                  </motion.button>
+                )}
                 {isDiet && (
                   <motion.button
                     whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 0, 0, 0.04)' }}

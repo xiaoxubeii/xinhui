@@ -43,7 +43,6 @@ interface SidebarItemProps {
 
 const SidebarItem = ({ icon, label, badge, shortcut, active, disabled, collapsed, onClick }: SidebarItemProps) => (
   <motion.button
-    whileHover={{ backgroundColor: 'rgba(0, 0, 0, 0.04)' }}
     whileTap={{ scale: 0.98 }}
     onClick={onClick}
     title={label}
@@ -53,6 +52,7 @@ const SidebarItem = ({ icon, label, badge, shortcut, active, disabled, collapsed
       ${collapsed ? 'justify-center px-2' : 'px-3'}
       ${active ? 'bg-black/5 text-black' : 'text-gray-900'}
       ${disabled ? 'opacity-50 pointer-events-none' : ''}
+      ${active ? '' : 'hover:bg-black/5'}
     `}
   >
     <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center text-gray-800">
