@@ -128,6 +128,40 @@ struct HealthTargets: Codable {
     }
 }
 
+// MARK: - Lifestyle Summary (Dashboard)
+
+struct LifestyleSummaryResponse: Codable {
+    let deviceId: String
+    let start: String
+    let end: String
+    let days: [LifestyleDay]
+
+    enum CodingKeys: String, CodingKey {
+        case deviceId = "device_id"
+        case start
+        case end
+        case days
+    }
+}
+
+struct LifestyleDay: Codable {
+    let date: String
+    let steps: Int?
+    let workoutEnergyKcal: Double?
+    let sleepHours: Double?
+    let dietIntakeKcal: Double?
+    let netKcal: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case date
+        case steps
+        case workoutEnergyKcal = "workout_energy_kcal"
+        case sleepHours = "sleep_hours"
+        case dietIntakeKcal = "diet_intake_kcal"
+        case netKcal = "net_kcal"
+    }
+}
+
 // MARK: - Plans
 
 struct ExercisePlanResponse: Codable {

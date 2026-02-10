@@ -33,3 +33,12 @@ struct MetricCard: View {
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
+
+extension View {
+    func cardBorder() -> some View {
+        overlay(
+            RoundedRectangle(cornerRadius: Constants.cornerRadius)
+                .stroke(Color(.separator).opacity(0.4), lineWidth: 1)
+        )
+    }
+}

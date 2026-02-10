@@ -150,8 +150,8 @@ final class APIClient {
 
     // MARK: - Dashboard & Plans
 
-    func fetchDashboardSummary(deviceId: String, start: String, end: String) async throws -> DashboardSummaryResponse {
-        var url = effectiveBaseURL().appendingPathComponent("dashboard/summary/\(deviceId)")
+    func fetchLifestyleSummary(deviceId: String, start: String, end: String) async throws -> LifestyleSummaryResponse {
+        var url = effectiveBaseURL().appendingPathComponent("lifestyle/summary/\(deviceId)")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "start", value: start),
@@ -159,7 +159,7 @@ final class APIClient {
         ]
         if let newURL = components?.url { url = newURL }
         let data = try await performJSONRequest(url: url, method: "GET", body: nil, timeout: 30)
-        return try decodeJSON(DashboardSummaryResponse.self, from: data)
+        return try decodeJSON(LifestyleSummaryResponse.self, from: data)
     }
 
     func fetchExercisePlan(deviceId: String, date: String) async throws -> ExercisePlanResponse {

@@ -134,10 +134,16 @@ final class DashboardViewModel: ObservableObject {
         do {
             let today = DateFormatters.dateOnly.string(from: now)
             let start30 = DateFormatters.dateOnly.string(from: Calendar.current.date(byAdding: .day, value: -29, to: startOfDay) ?? startOfDay)
-            let summary = try await api.fetchDashboardSummary(deviceId: deviceId, start: start30, end: today)
-            applySummary(summary)
+            let summary = try await api.fetchLifestyleSummary(deviceId: deviceId, start: start30, end: today)
+            applyLifestyleSummary(summary, today: today)
         } catch {
-            dashboardError = "Dashboard 汇总数据获取失败"
+            if let syncError = error as? SyncError {
+                dashboardError = syncError.errorDescription ?? "Dashboard 汇总数据获取失败"
+            } else if let localized = (error as? LocalizedError)?.errorDescription {
+                dashboardError = localized
+            } else {
+                dashboardError = "Dashboard 汇总数据获取失败: \(error.localizedDescription)"
+            }
         }
     }
 
@@ -287,6 +293,54 @@ final class DashboardViewModel: ObservableObject {
         trend30d = summary.trend30d ?? []
         energyBalance = summary.balance
         targets = summary.targets
+    }
+
+    private func applyLifestyleSummary(_ summary: LifestyleSummaryResponse, today: String) {
+        let days = summary.days.sorted { $0.date < $1.date }
+        let todayDay = days.last(where: { $0.date == today }) ?? days.last
+
+        if let steps = todayDay?.steps { todaySteps = steps }
+        if let sleep = todayDay?.sleepHours { lastSleepHours = sleep }
+        if let intake = todayDay?.dietIntakeKcal { todayIntakeKcal = intake }
+        if let burned = todayDay?.workoutEnergyKcal { todayBurnedKcal = burned }
+
+        let trendDays7 = Array(days.suffix(7))
+        let trendDays30 = Array(days.suffix(30))
+        trend7d = trendDays7.map { day in
+            DashboardTrendPoint(
+                date: day.date,
+                steps: day.steps,
+                sleepHours: day.sleepHours,
+                intakeKcal: day.dietIntakeKcal,
+                burnedKcal: day.workoutEnergyKcal
+            )
+        }
+        trend30d = trendDays30.map { day in
+            DashboardTrendPoint(
+                date: day.date,
+                steps: day.steps,
+                sleepHours: day.sleepHours,
+                intakeKcal: day.dietIntakeKcal,
+                burnedKcal: day.workoutEnergyKcal
+            )
+        }
+
+        let weekly = trendDays7
+        let weeklyAvg = weekly.isEmpty ? nil : weekly.reduce(0.0) { acc, day in
+            acc + ((day.dietIntakeKcal ?? 0) - (day.workoutEnergyKcal ?? 0))
+        } / Double(weekly.count)
+
+        if let day = todayDay {
+            let delta = (day.dietIntakeKcal ?? 0) - (day.workoutEnergyKcal ?? 0)
+            energyBalance = EnergyBalance(
+                date: day.date,
+                deltaKcal: delta,
+                weeklyAvgKcal: weeklyAvg,
+                targetDeltaKcal: nil
+            )
+        }
+
+        targets = nil
     }
 
     private func ensureDailyState(now: Date = Date()) {

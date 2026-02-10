@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct DashboardView: View {
     @ObservedObject var viewModel: DashboardViewModel
@@ -307,6 +308,8 @@ private struct TrendSection: View {
                     .foregroundColor(.secondary)
             } else {
                 VStack(spacing: 8) {
+                    TrendChart(data: selectedData)
+                        .frame(height: 160)
                     ForEach(selectedData) { point in
                         TrendRow(point: point, maxSteps: maxSteps)
                     }
@@ -319,6 +322,50 @@ private struct TrendSection: View {
         .cornerRadius(Constants.cornerRadius)
         .cardBorder()
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
+    }
+}
+
+private struct TrendChart: View {
+    let data: [DashboardTrendPoint]
+
+    private var maxSteps: Double {
+        Double(data.compactMap { $0.steps }.max() ?? 0)
+    }
+
+    private func date(for point: DashboardTrendPoint) -> Date? {
+        DateFormatters.dateOnly.date(from: point.date)
+    }
+
+    var body: some View {
+        Chart {
+            ForEach(data) { point in
+                if let date = date(for: point), let steps = point.steps {
+                    AreaMark(
+                        x: .value("日期", date),
+                        y: .value("步数", steps)
+                    )
+                    .foregroundStyle(.green.opacity(0.15))
+
+                    LineMark(
+                        x: .value("日期", date),
+                        y: .value("步数", steps)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(.green)
+                }
+            }
+        }
+        .chartYScale(domain: 0...max(1.0, maxSteps))
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                if let date = value.as(Date.self) {
+                    AxisValueLabel(DateFormatters.displayDate.string(from: date))
+                }
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 3))
+        }
     }
 }
 
