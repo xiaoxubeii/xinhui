@@ -15,6 +15,21 @@
           "id": "gpt-5.2"
         }
       }
+    },
+    "zhipuai-coding-plan": {
+      "name": "Zhipu AI Coding Plan",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://open.bigmodel.cn/api/coding/paas/v4",
+        "apiKey": "{env:ZHIPU_API_KEY}",
+        "timeout": 30000
+      },
+      "models": {
+        "glm-4.6v-flash": {
+          "name": "GLM-4.6V-Flash",
+          "id": "glm-4.6v-flash"
+        }
+      }
     }
   },
   "model": "opencode/minimax-m2.1-free",

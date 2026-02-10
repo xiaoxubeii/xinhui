@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Diet — Vision model call (OpenAI-compatible chat/completions)."""
+"""Diet — Vision model call via OpenCode session API."""
 
 from __future__ import annotations
 
@@ -138,6 +138,10 @@ def recognize_food(
             },
         ],
     }
+    if "/" in cfg.model:
+        provider_id, model_id = cfg.model.split("/", 1)
+        if provider_id and model_id:
+            payload["model"] = {"providerID": provider_id, "modelID": model_id}
 
     headers = {
         "Content-Type": "application/json",
