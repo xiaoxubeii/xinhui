@@ -7,6 +7,7 @@ import type { ChatMessage } from './components/ChatView';
 import { ArtifactsLibraryView } from './components/ArtifactsLibraryView';
 import { AccountView } from './components/AccountView';
 import { AgentLandingView } from './components/AgentLandingView';
+import { PlansView } from './components/PlansView';
 import './App.css';
 
 interface UserPublic {
@@ -289,7 +290,7 @@ function App() {
   const [chatError, setChatError] = useState<{ message: string; at: string } | null>(null);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [activeView, setActiveView] = useState<'chat' | 'library' | 'account'>('chat');
+  const [activeView, setActiveView] = useState<'chat' | 'library' | 'plans' | 'account'>('chat');
   const [activeAgentId, setActiveAgentId] = useState<AgentId>('report');
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -742,13 +743,21 @@ function App() {
     !streamingContent &&
     !chatError;
   const headerTitle =
-    activeView === 'library' ? '我的资料库' : activeView === 'account' ? '账号与合规' : agent.label;
+    activeView === 'library'
+      ? '我的资料库'
+      : activeView === 'plans'
+        ? '运动与营养规划'
+        : activeView === 'account'
+          ? '账号与合规'
+          : agent.label;
   const headerDesc =
     activeView === 'library'
       ? '查看/上传你的报告与数据，可一键附加到当前会话供智能体引用。'
-      : activeView === 'account'
-        ? '管理账户信息与 API Key。'
-        : agent.description;
+      : activeView === 'plans'
+        ? '展示最近确认的运动处方与营养规划。'
+        : activeView === 'account'
+          ? '管理账户信息与 API Key。'
+          : agent.description;
 
   return (
     <div className="min-h-screen bg-white flex">
@@ -792,6 +801,8 @@ function App() {
             onAttachmentsChanged={refreshActiveSession}
             defaultCategory={agentMeta[activeAgentId].category}
           />
+        ) : activeView === 'plans' ? (
+          <PlansView userId={me.id} />
         ) : activeView === 'account' ? (
           <AccountView user={me} />
         ) : showLanding ? (

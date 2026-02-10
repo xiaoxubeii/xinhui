@@ -23,6 +23,18 @@ final class APIClient {
         }
     }
 
+    struct UserPublic: Decodable {
+        let id: String
+        let email: String
+        let createdAt: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id
+            case email
+            case createdAt = "created_at"
+        }
+    }
+
     var baseURL: URL
 
     init(baseURL: URL? = nil) {
@@ -53,6 +65,12 @@ final class APIClient {
         let url = effectiveBaseURL().appendingPathComponent("auth/login")
         let payload = LoginRequest(email: email, password: password)
         _ = try await performJSONRequest(url: url, method: "POST", body: try encodeBody(payload), timeout: 30)
+    }
+
+    func fetchMe() async throws -> UserPublic {
+        let url = effectiveBaseURL().appendingPathComponent("auth/me")
+        let data = try await performJSONRequest(url: url, method: "GET", body: nil, timeout: 15)
+        return try decodeJSON(UserPublic.self, from: data)
     }
 
     func createApiKey(name: String) async throws -> String {

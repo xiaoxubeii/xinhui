@@ -9,6 +9,7 @@ import {
   MessageSquare,
   User,
   Heart,
+  ClipboardList,
   PanelLeftClose,
   PanelLeftOpen,
 } from 'lucide-react';
@@ -91,11 +92,11 @@ const SidebarSection = ({ title, children, collapsed }: { title?: string; childr
 interface SidebarProps {
   agents: AgentNavItem[];
   activeAgentId: AgentId;
-  activeView?: 'chat' | 'library' | 'account';
+  activeView?: 'chat' | 'library' | 'plans' | 'account';
   sessions: SessionSummary[];
   activeSessionId: string | null;
   onSelectAgent: (id: AgentId) => void;
-  onSelectView?: (view: 'chat' | 'library' | 'account') => void;
+  onSelectView?: (view: 'chat' | 'library' | 'plans' | 'account') => void;
   onNewSession: () => void;
   onSelectSession: (id: string) => void;
   collapsed?: boolean;
@@ -226,6 +227,16 @@ export function Sidebar({
             collapsed={collapsed}
             active={activeView === 'library'}
             onClick={() => onSelectView?.('library')}
+          />
+        </SidebarSection>
+
+        <SidebarSection title="规划" collapsed={collapsed}>
+          <SidebarItem
+            icon={<ClipboardList className="w-4 h-4" />}
+            label="运动与营养规划"
+            collapsed={collapsed}
+            active={activeView === 'plans'}
+            onClick={() => onSelectView?.('plans')}
           />
         </SidebarSection>
 

@@ -5,6 +5,7 @@ import Combine
 final class DashboardViewModel: ObservableObject {
     @Published var lastSyncDate: Date?
     @Published var deviceId: String = ""
+    @Published var userId: String = ""
     @Published var todaySteps: Int = 0
     @Published var latestHeartRate: Double?
     @Published var latestSpO2: Double?
@@ -98,16 +99,24 @@ final class DashboardViewModel: ObservableObject {
         }
 
         // Plans (exercise & nutrition)
+        let today = DateFormatters.dateOnly.string(from: now)
+        var planOwnerId = deviceId
         do {
-            let today = DateFormatters.dateOnly.string(from: now)
-            exercisePlan = try await api.fetchExercisePlan(deviceId: deviceId, date: today)
+            let me = try await api.fetchMe()
+            userId = me.id
+            planOwnerId = me.id
+        } catch {
+            userId = ""
+        }
+
+        do {
+            exercisePlan = try await api.fetchExercisePlan(deviceId: planOwnerId, date: today)
         } catch {
             exercisePlan = nil
         }
 
         do {
-            let today = DateFormatters.dateOnly.string(from: now)
-            nutritionPlan = try await api.fetchNutritionPlan(deviceId: deviceId, date: today)
+            nutritionPlan = try await api.fetchNutritionPlan(deviceId: planOwnerId, date: today)
         } catch {
             nutritionPlan = nil
         }
