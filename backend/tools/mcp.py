@@ -326,8 +326,8 @@ def _nutrition_plan_payload(result: Dict[str, Any], args: Dict[str, Any]) -> Dic
     valid_to = args.get("valid_to") or (today + timedelta(days=6)).isoformat()
     daily = result.get("daily_targets") or {}
     return {
-        "title": args.get("title") or "营养规划",
-        "summary": result.get("summary") or "营养规划",
+        "title": args.get("title") or "营养处方",
+        "summary": result.get("summary") or "营养处方",
         "valid_from": valid_from,
         "valid_to": valid_to,
         "macros": {

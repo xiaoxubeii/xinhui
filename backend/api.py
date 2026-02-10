@@ -32,6 +32,8 @@ from .auth.security import get_current_user_from_request
 from .artifacts.api import router as artifacts_router
 from .api_keys.api import router as api_keys_router
 from .chat.api import router as chat_router
+from .chat.opencode import create_session as opencode_create_session
+from .chat.opencode import send_message as opencode_send_message
 from .plans.api import router as plans_router
 from .realtime.websocket import realtime_manager, websocket_endpoint, SessionConfig
 from .inference.at_predictor import CPETDataPoint
@@ -1043,9 +1045,110 @@ def _retrieve_context(question: str, top_k: int = 3) -> str:
     return ""
 
 
+def _extract_opencode_answer(payload: Any) -> str:
+    if isinstance(payload, dict):
+        if isinstance(payload.get("answer"), str):
+            return payload["answer"]
+        parts = payload.get("parts")
+        if isinstance(parts, list):
+            return "".join(
+                p.get("text", "")
+                for p in parts
+                if isinstance(p, dict) and p.get("type") == "text"
+            )
+        msg = payload.get("message")
+        if isinstance(msg, dict) and isinstance(msg.get("parts"), list):
+            return "".join(
+                p.get("text", "")
+                for p in msg["parts"]
+                if isinstance(p, dict) and p.get("type") == "text"
+            )
+        data = payload.get("data")
+        if isinstance(data, dict) and isinstance(data.get("parts"), list):
+            return "".join(
+                p.get("text", "")
+                for p in data["parts"]
+                if isinstance(p, dict) and p.get("type") == "text"
+            )
+    return ""
+
+
+def _extract_opencode_error(payload: Any) -> str:
+    if isinstance(payload, dict):
+        err = payload.get("error")
+        if isinstance(err, dict):
+            msg = err.get("message") or err.get("detail") or err.get("error")
+            if isinstance(msg, str):
+                return msg
+        info = payload.get("info")
+        if isinstance(info, dict):
+            err = info.get("error")
+            if isinstance(err, dict):
+                data = err.get("data")
+                if isinstance(data, dict):
+                    msg = data.get("message")
+                    if isinstance(msg, str):
+                        return msg
+                msg = err.get("message")
+                if isinstance(msg, str):
+                    return msg
+    return ""
+
+
 @app.post("/api/agent/ask", response_model=AgentAskResponse)
-def agent_ask(_: AgentAskRequest):
-    raise HTTPException(status_code=410, detail="Local LLM disabled; use OpenCode via /api/chat.")
+async def agent_ask(request: AgentAskRequest):
+    system_prompt = (
+        "You are a clinical CPET assistant. Answer strictly based on the provided JSON context. "
+        "If the answer is not in the context, say you do not know. "
+        "Be concise, professional, and avoid making definitive diagnoses."
+    )
+
+    history_lines: list[str] = []
+    for msg in (request.history or [])[-6:]:
+        if msg.role in {"user", "assistant"} and isinstance(msg.content, str):
+            history_lines.append(f"{msg.role}: {msg.content}")
+    history_block = "\n".join(history_lines)
+
+    ctx = request.context or {}
+    context_str = json.dumps(ctx, ensure_ascii=False)
+    prompt_parts = [system_prompt, f"Context (JSON):\n{context_str}"]
+    if history_block:
+        prompt_parts.append(f"History:\n{history_block}")
+    prompt_parts.append(f"Question:\n{request.question}")
+    full_prompt = "\n\n".join(prompt_parts)
+
+    try:
+        opencode_id = await opencode_create_session(title=request.page or "iOS Agent")
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"OpenCode session unavailable: {exc}") from exc
+
+    try:
+        client, resp = await opencode_send_message(
+            session_id=opencode_id,
+            agent="clinical",
+            content=full_prompt,
+            stream=False,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"OpenCode send failed: {exc}") from exc
+
+    try:
+        payload = resp.json()
+    except Exception:
+        payload = {}
+
+    await resp.aclose()
+    await client.aclose()
+
+    if resp.status_code >= 400:
+        err = _extract_opencode_error(payload) or f"OpenCode error: {resp.status_code}"
+        raise HTTPException(status_code=502, detail=err)
+
+    answer = _extract_opencode_answer(payload).strip()
+    if not answer:
+        answer = "暂无可用回答。"
+
+    return AgentAskResponse(answer=answer, model="opencode", start=None, end=None)
 
 
 # ---------- OpenCode 代理 ----------

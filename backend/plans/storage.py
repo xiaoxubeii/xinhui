@@ -106,17 +106,67 @@ def confirm_plan(*, user_id: str, draft_id: str) -> Dict[str, Any]:
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Plan not found")
-        if row["status"] != "confirmed":
-            conn.execute(
-                "UPDATE plans SET status = ?, confirmed_at = ? WHERE id = ?",
-                ("confirmed", now, draft_id),
-            )
-            row = conn.execute(
-                "SELECT * FROM plans WHERE id = ? AND user_id = ?",
-                (draft_id, user_id),
-            ).fetchone()
 
-    return _row_to_plan(dict(row))
+        current = dict(row)
+        status = current.get("status")
+        if status == "confirmed":
+            return _row_to_plan(current)
+        if status != "draft":
+            raise HTTPException(status_code=409, detail="Plan already confirmed")
+
+        raw_payload = current.get("payload_json") or ""
+        try:
+            payload = json.loads(raw_payload) if raw_payload else {}
+        except Exception:
+            payload = {}
+
+        plan_type = current.get("plan_type")
+        if plan_type == "exercise":
+            payload["title"] = "运动规划"
+        elif plan_type == "nutrition":
+            payload["title"] = "营养规划"
+
+        summary = payload.get("summary") or current.get("summary") or payload.get("title") or ""
+        payload["summary"] = summary
+
+        valid_from = _safe_date(payload.get("valid_from")) or current.get("valid_from")
+        valid_to = _safe_date(payload.get("valid_to")) or current.get("valid_to")
+
+        confirmed_id = str(uuid4())
+        conn.execute(
+            """
+            INSERT INTO plans (
+                id, user_id, patient_id, plan_type, status, summary, payload_json,
+                valid_from, valid_to, source_session_id, source_artifact_ids, created_at, confirmed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                confirmed_id,
+                user_id,
+                current.get("patient_id"),
+                plan_type,
+                "confirmed",
+                summary,
+                json.dumps(payload, ensure_ascii=False),
+                valid_from,
+                valid_to,
+                current.get("source_session_id"),
+                current.get("source_artifact_ids"),
+                now,
+                now,
+            ),
+        )
+        conn.execute(
+            "UPDATE plans SET status = ? WHERE id = ?",
+            ("archived", draft_id),
+        )
+
+        confirmed_row = conn.execute(
+            "SELECT * FROM plans WHERE id = ? AND user_id = ?",
+            (confirmed_id, user_id),
+        ).fetchone()
+
+    return _row_to_plan(dict(confirmed_row))
 
 
 def _within_date(date: Optional[str], valid_from: Optional[str], valid_to: Optional[str]) -> bool:

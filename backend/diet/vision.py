@@ -8,7 +8,9 @@ import json
 import os
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Tuple
+from urllib.parse import urlparse
 
 import httpx
 
@@ -20,25 +22,39 @@ from .storage import compute_totals
 @dataclass(frozen=True)
 class VisionSettings:
     base_url: str
-    api_key: str
     model: str
     timeout: float
     temperature: float
     max_tokens: int
 
 
+def _strip_jsonc(text: str) -> str:
+    text = re.sub(r"//.*?$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"/\\*.*?\\*/", "", text, flags=re.DOTALL)
+    return text
+
+
+def _resolve_default_model() -> str | None:
+    config_path = settings.agent_config_path
+    if not config_path or not config_path.exists():
+        return None
+    try:
+        raw = config_path.read_text(encoding="utf-8")
+        parsed = json.loads(_strip_jsonc(raw))
+    except Exception:
+        return None
+    model = parsed.get("model") or parsed.get("agent", {}).get("model")
+    return model if isinstance(model, str) and model else None
+
+
 def resolve_vision_settings() -> VisionSettings:
-    base_url = (os.environ.get("DIET_VISION_BASE_URL") or settings.qwen_base_url).rstrip("/")
-    api_key = os.environ.get("DIET_VISION_API_KEY") or settings.qwen_api_key or ""
-    if not api_key:
-        raise ValueError("DIET_VISION_API_KEY (or QWEN_API_KEY fallback) not set")
-    model = os.environ.get("DIET_VISION_MODEL") or "qwen-vl-max"
+    base_url = (os.environ.get("DIET_VISION_BASE_URL") or settings.opencode_base_url).rstrip("/")
+    model = os.environ.get("DIET_VISION_MODEL") or _resolve_default_model() or "opencode/minimax-m2.1-free"
     timeout = float(os.environ.get("DIET_VISION_TIMEOUT") or settings.qwen_timeout)
     temperature = float(os.environ.get("DIET_VISION_TEMPERATURE") or 0.2)
     max_tokens = int(os.environ.get("DIET_VISION_MAX_TOKENS") or 800)
     return VisionSettings(
         base_url=base_url,
-        api_key=api_key,
         model=model,
         timeout=timeout,
         temperature=temperature,
@@ -70,9 +86,22 @@ def recognize_food(
     locale: str | None,
 ) -> Tuple[DietVisionRawResult, str]:
     cfg = resolve_vision_settings()
-    url = cfg.base_url
-    if not url.endswith("/chat/completions"):
-        url = f"{url}/chat/completions"
+    base = cfg.base_url.rstrip("/")
+    parsed = urlparse(base)
+    root = f"{parsed.scheme}://{parsed.netloc}"
+    candidates = [
+        f"{base}/assistant-api/v1/chat/completions",
+        f"{base}/v1/chat/completions",
+        f"{base}/chat/completions",
+    ]
+    if base != root:
+        candidates.extend(
+            [
+                f"{root}/assistant-api/v1/chat/completions",
+                f"{root}/v1/chat/completions",
+                f"{root}/chat/completions",
+            ]
+        )
 
     locale_str = locale or "zh-CN"
 
@@ -125,13 +154,28 @@ def recognize_food(
 
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {cfg.api_key}",
+        "x-opencode-directory": str(settings.opencode_directory),
     }
 
-    with httpx.Client(timeout=cfg.timeout) as client:
-        resp = client.post(url, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
+    data = None
+    last_error: Exception | None = None
+    with httpx.Client(timeout=cfg.timeout, follow_redirects=True) as client:
+        for url in candidates:
+            try:
+                resp = client.post(url, headers=headers, json=payload)
+                content_type = resp.headers.get("content-type") or ""
+                if resp.status_code >= 400:
+                    resp.raise_for_status()
+                if "text/html" in content_type:
+                    raise ValueError("OpenCode API returned HTML")
+                data = resp.json()
+                break
+            except Exception as exc:
+                last_error = exc
+                continue
+
+    if data is None:
+        raise ValueError(f"OpenCode vision call failed: {last_error}")
 
     content = (
         data.get("choices", [{}])[0]
@@ -163,4 +207,3 @@ def recognize_food(
         )
 
     return result, cfg.model
-

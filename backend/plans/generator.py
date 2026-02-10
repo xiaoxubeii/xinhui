@@ -117,7 +117,7 @@ def generate_plan_draft(
         warnings.append("未提供可解析的报告或数据，处方基于描述生成")
 
     schema = _EXERCISE_SCHEMA if plan_type == "exercise" else _NUTRITION_SCHEMA
-    plan_title = "运动处方" if plan_type == "exercise" else "营养规划"
+    plan_title = "运动处方" if plan_type == "exercise" else "营养处方"
     valid_from, valid_to = _default_valid_range()
 
     system_prompt = (
