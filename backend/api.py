@@ -32,6 +32,7 @@ from .auth.security import get_current_user_from_request
 from .artifacts.api import router as artifacts_router
 from .api_keys.api import router as api_keys_router
 from .chat.api import router as chat_router
+from .plans.api import router as plans_router
 from .realtime.websocket import realtime_manager, websocket_endpoint, SessionConfig
 from .inference.at_predictor import CPETDataPoint
 from .inference.vo2_predictor import VO2PeakPredictor, WeberClass
@@ -78,6 +79,7 @@ _AUTH_EXEMPT_PREFIXES = (
     "/api/docs",
     "/api/redoc",
     "/api/openapi.json",
+    "/api/mcp",
 )
 
 
@@ -98,6 +100,7 @@ app.include_router(auth_router)
 app.include_router(api_keys_router)
 app.include_router(artifacts_router)
 app.include_router(chat_router)
+app.include_router(plans_router)
 
 # 注册 RAG API 路由
 try:
@@ -105,13 +108,6 @@ try:
     app.include_router(rag_router)
 except ImportError:
     pass  # RAG module not available
-
-# 注册工具 API 路由
-try:
-    from .tools.api import router as tools_router
-    app.include_router(tools_router)
-except ImportError:
-    pass  # Tools module not available
 
 # 注册 MCP Server 路由
 try:
@@ -1048,12 +1044,8 @@ def _retrieve_context(question: str, top_k: int = 3) -> str:
 
 
 @app.post("/api/agent/ask", response_model=AgentAskResponse)
-def agent_ask(request: AgentAskRequest):
-    from .agent_service import ask_agent
-
-    history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
-    result = ask_agent(question=request.question, context=request.context, history=history)
-    return AgentAskResponse(answer=result.get("answer") or "暂无可用回答。", model=result.get("model") or "unknown")
+def agent_ask(_: AgentAskRequest):
+    raise HTTPException(status_code=410, detail="Local LLM disabled; use OpenCode via /api/chat.")
 
 
 # ---------- OpenCode 代理 ----------

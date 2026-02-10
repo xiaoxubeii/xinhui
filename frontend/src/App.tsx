@@ -54,6 +54,17 @@ interface SessionDetail {
   artifacts: ArtifactListItem[];
 }
 
+type PlanType = 'exercise' | 'nutrition';
+
+interface PlanDraft {
+  id: string;
+  planType: PlanType;
+  summary: string;
+  payload: Record<string, unknown>;
+  warnings: string[];
+  status: 'draft' | 'confirmed';
+}
+
 const apiBase = import.meta.env.VITE_API_BASE ?? '';
 
 const agentMeta: Record<
@@ -134,6 +145,32 @@ const extractOpenCodeText = (payload: unknown) => {
   return '';
 };
 
+const extractOpenCodeError = (payload: unknown) => {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    return '';
+  }
+  const obj = payload as Record<string, unknown>;
+  const err = obj.error as Record<string, unknown> | undefined;
+  if (err) {
+    const msg = err.message ?? err.detail ?? err.error;
+    if (typeof msg === 'string' && msg.trim()) {
+      return msg.trim();
+    }
+  }
+  const info = obj.info as Record<string, unknown> | undefined;
+  if (info) {
+    const infoErr = info.error as Record<string, unknown> | undefined;
+    if (infoErr) {
+      const data = infoErr.data as Record<string, unknown> | undefined;
+      const msg = (data && data.message) ?? infoErr.message ?? infoErr.detail;
+      if (typeof msg === 'string' && msg.trim()) {
+        return msg.trim();
+      }
+    }
+  }
+  return '';
+};
+
 const readOpenCodeResponse = async (response: Response, onStream?: (text: string) => void) => {
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('text/event-stream')) {
@@ -144,6 +181,7 @@ const readOpenCodeResponse = async (response: Response, onStream?: (text: string
     const decoder = new TextDecoder();
     let buffer = '';
     let fullText = '';
+    let streamError: string | null = null;
 
     const handleLine = (line: string) => {
       if (!line.startsWith('data:')) {
@@ -155,6 +193,11 @@ const readOpenCodeResponse = async (response: Response, onStream?: (text: string
       }
       try {
         const event = JSON.parse(jsonStr);
+        const err = extractOpenCodeError(event);
+        if (err) {
+          streamError = err;
+          return;
+        }
         if (event?.parts && Array.isArray(event.parts)) {
           const delta = collectTextParts(event.parts);
           if (delta) {
@@ -179,10 +222,26 @@ const readOpenCodeResponse = async (response: Response, onStream?: (text: string
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() ?? '';
-      lines.forEach(handleLine);
+      for (const line of lines) {
+        handleLine(line);
+        if (streamError) {
+          break;
+        }
+      }
+      if (streamError) {
+        break;
+      }
     }
-    if (buffer) {
+    if (buffer && !streamError) {
       handleLine(buffer);
+    }
+    if (streamError) {
+      try {
+        await reader.cancel();
+      } catch {
+        // ignore
+      }
+      throw new Error(streamError);
     }
     return fullText;
   }
@@ -191,6 +250,10 @@ const readOpenCodeResponse = async (response: Response, onStream?: (text: string
   if (contentType.includes('application/json') || raw.trim().startsWith('{')) {
     try {
       const data = JSON.parse(raw);
+      const err = extractOpenCodeError(data);
+      if (err) {
+        throw new Error(err);
+      }
       const extracted = extractOpenCodeText(data);
       return extracted || '';
     } catch {
@@ -223,6 +286,7 @@ function App() {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
+  const [chatError, setChatError] = useState<{ message: string; at: string } | null>(null);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState<'chat' | 'library' | 'account'>('chat');
@@ -234,6 +298,7 @@ function App() {
   const [streamingContent, setStreamingContent] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const [planDraftsBySession, setPlanDraftsBySession] = useState<Record<string, PlanDraft[]>>({});
 
   const agents = useMemo(
     () => [
@@ -302,6 +367,8 @@ function App() {
       setActiveSessionId(null);
       setActiveSession(null);
       setActiveView('chat');
+      setPlanDraftsBySession({});
+      setChatError(null);
     }
   };
 
@@ -315,6 +382,35 @@ function App() {
     return data.items ?? [];
   }, []);
 
+  const loadSessionPlans = useCallback(async (sessionId: string) => {
+    try {
+      const resp = await apiFetch(`/api/plans/session/${encodeURIComponent(sessionId)}?status=draft`);
+      if (!resp.ok) {
+        return;
+      }
+      const data = (await resp.json()) as {
+        items: {
+          plan_id: string;
+          plan_type: PlanType;
+          summary: string;
+          payload: Record<string, unknown>;
+          status: 'draft' | 'confirmed';
+        }[];
+      };
+      const mapped: PlanDraft[] = (data.items ?? []).map((item) => ({
+        id: item.plan_id,
+        planType: item.plan_type,
+        summary: item.summary,
+        payload: item.payload ?? {},
+        warnings: [],
+        status: item.status ?? 'draft',
+      }));
+      setPlanDraftsBySession((prev) => ({ ...prev, [sessionId]: mapped }));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   const loadSessionDetail = useCallback(async (sessionId: string) => {
     const resp = await apiFetch(`/api/chat/sessions/${encodeURIComponent(sessionId)}`);
     if (!resp.ok) {
@@ -322,8 +418,9 @@ function App() {
     }
     const data = (await resp.json()) as SessionDetail;
     setActiveSession(data);
+    void loadSessionPlans(sessionId);
     return data;
-  }, []);
+  }, [loadSessionPlans]);
 
   const createNewSession = useCallback(async (agentId: AgentId) => {
     const resp = await apiFetch('/api/chat/sessions', {
@@ -373,6 +470,7 @@ function App() {
     setActiveSession(null);
     setStreamingContent('');
     setIsThinking(false);
+    setChatError(null);
     abortControllerRef.current?.abort();
     setActiveView('chat');
   };
@@ -380,11 +478,13 @@ function App() {
   const handleNewSession = () => {
     if (!me) return;
     setActiveView('chat');
+    setChatError(null);
     void createNewSession(activeAgentId);
   };
 
   const handleSelectSession = (sessionId: string) => {
     setActiveSessionId(sessionId);
+    setChatError(null);
     void loadSessionDetail(sessionId);
     setActiveView('chat');
   };
@@ -396,6 +496,7 @@ function App() {
   const handleSend = async (content: string) => {
     if (!me) return;
     const sessionId = activeSessionId ?? (await createNewSession(activeAgentId));
+    setChatError(null);
 
     // Optimistic user message
     setActiveSession((prev) => {
@@ -429,7 +530,20 @@ function App() {
       });
       if (!resp.ok) {
         const text = await resp.text();
-        throw new Error(text || `请求失败 (${resp.status})`);
+        let message = text;
+        if (text) {
+          try {
+            const payload = JSON.parse(text);
+            if (typeof payload?.detail === 'string') {
+              message = payload.detail;
+            } else if (typeof payload?.error === 'string') {
+              message = payload.error;
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+        throw new Error(message || `请求失败 (${resp.status})`);
       }
       const answer = await readOpenCodeResponse(resp, (txt) => setStreamingContent(txt));
       if (answer.trim()) {
@@ -449,16 +563,7 @@ function App() {
         return;
       }
       const msg = err instanceof Error ? err.message : '未知错误';
-      setActiveSession((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          messages: [
-            ...prev.messages,
-            { id: `local-e-${Date.now()}`, role: 'assistant', content: `调用失败：${msg}`, created_at: new Date().toISOString() },
-          ],
-        };
-      });
+      setChatError({ message: msg, at: new Date().toISOString() });
     } finally {
       setIsThinking(false);
       setStreamingContent('');
@@ -470,6 +575,35 @@ function App() {
       } catch {
         // ignore
       }
+    }
+  };
+
+  const handleConfirmPlan = async (draftId: string) => {
+    if (!me) return;
+    try {
+      const resp = await apiFetch('/api/plans/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draft_id: draftId }),
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(text || `确认失败 (${resp.status})`);
+      }
+      const data = (await resp.json()) as { status: 'draft' | 'confirmed' };
+      const sessionId = activeSessionId;
+      if (!sessionId) return;
+      void loadSessionPlans(sessionId);
+      setPlanDraftsBySession((prev) => {
+        const existing = prev[sessionId] ?? [];
+        const next = existing.map((draft) =>
+          draft.id === draftId ? { ...draft, status: data.status ?? 'confirmed' } : draft
+        );
+        return { ...prev, [sessionId]: next };
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '确认失败';
+      console.warn('confirm plan failed', msg);
     }
   };
 
@@ -530,6 +664,11 @@ function App() {
   const attachedArtifactIds = useMemo(() => {
     return new Set((activeSession?.artifacts ?? []).map((a) => a.id));
   }, [activeSession?.artifacts]);
+
+  const activePlanDrafts = useMemo(() => {
+    if (!activeSessionId) return [];
+    return planDraftsBySession[activeSessionId] ?? [];
+  }, [activeSessionId, planDraftsBySession]);
 
   const refreshActiveSession = useCallback(async () => {
     if (!activeSessionId) return;
@@ -596,7 +735,12 @@ function App() {
   }
 
   const agent = agentMeta[activeAgentId];
-  const showLanding = activeView === 'chat' && (activeSession?.messages?.length ?? 0) === 0;
+  const showLanding =
+    activeView === 'chat' &&
+    (activeSession?.messages?.length ?? 0) === 0 &&
+    !isThinking &&
+    !streamingContent &&
+    !chatError;
   const headerTitle =
     activeView === 'library' ? '我的资料库' : activeView === 'account' ? '账号与合规' : agent.label;
   const headerDesc =
@@ -623,7 +767,7 @@ function App() {
       />
 
       <main
-        className={`flex-1 min-h-screen flex flex-col ${sidebarCollapsed ? 'ml-[72px]' : 'ml-[240px]'}`}
+        className={`flex-1 min-h-screen min-h-0 flex flex-col ${sidebarCollapsed ? 'ml-[72px]' : 'ml-[240px]'}`}
       >
         {!showLanding && (
           <div className="px-6 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -685,8 +829,12 @@ function App() {
             uploadedFiles={uploadedFiles}
             isThinking={isThinking}
             streamingContent={streamingContent}
+            errorMessage={chatError?.message ?? null}
+            onClearError={() => setChatError(null)}
             pdfSuggestion={null}
             pdfDefaults={null}
+            planDrafts={activePlanDrafts}
+            onConfirmPlan={handleConfirmPlan}
           />
         )}
       </main>

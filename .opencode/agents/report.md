@@ -1,7 +1,7 @@
 ---
 description: CPET 报告解读与关键指标分析
 color: "#1f5673"
-model: qwen/qwen3-max
+model: opencode/minimax-m2.1-free
 temperature: 0.2
 ---
 

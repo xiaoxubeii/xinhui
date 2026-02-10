@@ -62,6 +62,7 @@ def create_entry_record(
     notes: Optional[str],
     source: str,
     warnings: List[str],
+    plan_id: Optional[str] = None,
 ) -> DietEntry:
     now = datetime.utcnow().isoformat() + "Z"
     entry_id = str(uuid4())
@@ -77,6 +78,7 @@ def create_entry_record(
         notes=notes,
         source=source,
         warnings=warnings,
+        plan_id=plan_id,
     )
 
 
@@ -106,6 +108,7 @@ def get_device_entries(
     *,
     start: Optional[str] = None,
     end: Optional[str] = None,
+    plan_id: Optional[str] = None,
     data_root: Path | None = None,
 ) -> List[DietEntry]:
     root = data_root or _data_root_for(user_id)
@@ -118,7 +121,11 @@ def get_device_entries(
 
     def in_range(entry: DietEntry) -> bool:
         d = _date_prefix(entry.eaten_at)
-        return start_date <= d <= end_date
+        if not (start_date <= d <= end_date):
+            return False
+        if plan_id and entry.plan_id != plan_id:
+            return False
+        return True
 
     return [e for e in entries if in_range(e)]
 
@@ -129,10 +136,11 @@ def get_device_summary(
     *,
     start: str,
     end: str,
+    plan_id: Optional[str] = None,
     data_root: Path | None = None,
 ) -> Dict[str, Any]:
     root = data_root or _data_root_for(user_id)
-    entries = get_device_entries(user_id, device_id, start=start, end=end, data_root=root)
+    entries = get_device_entries(user_id, device_id, start=start, end=end, plan_id=plan_id, data_root=root)
 
     per_day: Dict[str, Dict[str, Any]] = {}
     totals = NutritionTotals()

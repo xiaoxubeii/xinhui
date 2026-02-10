@@ -1,7 +1,7 @@
 ---
 description: 运动数据分析与趋势摘要
 color: "#3b82f6"
-model: qwen/qwen3-max
+model: opencode/minimax-m2.1-free
 temperature: 0.2
 ---
 

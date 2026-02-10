@@ -1,7 +1,7 @@
 ---
 description: 个体化运动处方生成
 color: "#2f7f7a"
-model: qwen/qwen3-max
+model: opencode/minimax-m2.1-free
 temperature: 0.2
 ---
 

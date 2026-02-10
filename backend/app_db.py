@@ -119,6 +119,29 @@ def init_app_db(db_path: Path) -> None:
             );
             """
         )
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS plans (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                patient_id TEXT NOT NULL,
+                plan_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                summary TEXT,
+                payload_json TEXT NOT NULL,
+                valid_from TEXT,
+                valid_to TEXT,
+                source_session_id TEXT,
+                source_artifact_ids TEXT,
+                created_at TEXT NOT NULL,
+                confirmed_at TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            """
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_plans_user_patient_type_status_created ON plans(user_id, patient_id, plan_type, status, created_at DESC);"
+        )
         conn.commit()
     finally:
         conn.close()

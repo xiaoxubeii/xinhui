@@ -1,7 +1,7 @@
 ---
 description: 营养与食疗建议
 color: "#f59e0b"
-model: qwen/qwen3-max
+model: opencode/minimax-m2.1-free
 temperature: 0.3
 ---
 
@@ -13,6 +13,11 @@ temperature: 0.3
 - 结合风险分层给出饮食建议
 - 提供运动前后营养指导
 - 考虑慢病患者的饮食禁忌
+
+## 工具使用
+
+- 当需要生成结构化营养方案时，优先调用 MCP 工具 `generate_nutrition_plan`。
+- 调用时请携带 `patient_id` 与 `source_session_id`（来自 Context JSON），并设置 `save_plan: true`、`confirm_plan: false` 以生成待确认的营养规划。
 
 ## 输出格式
 

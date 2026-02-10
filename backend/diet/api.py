@@ -71,6 +71,7 @@ def create_entry(request: DietCreateEntryRequest, user: dict = Depends(get_curre
         notes=request.notes,
         source=request.source or "vision",
         warnings=[],
+        plan_id=request.plan_id,
     )
     try:
         save_entry(user["id"], entry)
@@ -89,11 +90,12 @@ def list_entries(
     device_id: str,
     start: str | None = Query(default=None, description="YYYY-MM-DD"),
     end: str | None = Query(default=None, description="YYYY-MM-DD"),
+    plan_id: str | None = Query(default=None, description="Filter by plan_id"),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     user: dict = Depends(get_current_user),
 ):
-    entries = get_device_entries(user["id"], device_id, start=start, end=end)
+    entries = get_device_entries(user["id"], device_id, start=start, end=end, plan_id=plan_id)
     sliced = entries[offset : offset + limit]
     return DietEntriesResponse(device_id=device_id, count=len(entries), entries=sliced)
 
@@ -103,9 +105,10 @@ def summary(
     device_id: str,
     start: str = Query(..., description="YYYY-MM-DD"),
     end: str = Query(..., description="YYYY-MM-DD"),
+    plan_id: str | None = Query(default=None, description="Filter by plan_id"),
     user: dict = Depends(get_current_user),
 ):
-    data = get_device_summary(user["id"], device_id, start=start, end=end)
+    data = get_device_summary(user["id"], device_id, start=start, end=end, plan_id=plan_id)
     return DietSummaryResponse(
         device_id=device_id,
         start=data["start"],

@@ -8,6 +8,7 @@ MCP (Model Context Protocol) 工具定义
 from __future__ import annotations
 
 from typing import Any, Dict, List
+from datetime import date, timedelta
 
 # MCP 工具定义
 MCP_TOOLS: List[Dict[str, Any]] = [
@@ -144,6 +145,67 @@ MCP_TOOLS: List[Dict[str, Any]] = [
         }
     },
     {
+        "name": "generate_nutrition_plan",
+        "description": "生成营养方案（能量、宏量营养素、餐次建议与约束）。",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "patient_id": {"type": "string", "description": "患者 ID（用于保存为营养规划）"},
+                "user_id": {"type": "string", "description": "用户 ID（如与患者不同）"},
+                "weight_kg": {"type": "number", "description": "体重 (kg)"},
+                "height_cm": {"type": "number", "description": "身高 (cm)"},
+                "age": {"type": "integer", "description": "年龄"},
+                "sex": {
+                    "type": "string",
+                    "description": "性别: male/female/other",
+                    "enum": ["male", "female", "other"]
+                },
+                "activity_level": {
+                    "type": "string",
+                    "description": "活动水平: sedentary/light/moderate/active/very_active",
+                    "enum": ["sedentary", "light", "moderate", "active", "very_active"]
+                },
+                "goal": {
+                    "type": "string",
+                    "description": "目标: loss/maintenance/gain",
+                    "enum": ["loss", "maintenance", "gain"]
+                },
+                "diet_type": {
+                    "type": "string",
+                    "description": "饮食类型",
+                    "enum": [
+                        "balanced",
+                        "low_carb",
+                        "high_protein",
+                        "mediterranean",
+                        "dash",
+                        "low_fat",
+                        "low_sugar",
+                        "keto"
+                    ]
+                },
+                "meals_per_day": {"type": "integer", "description": "餐次数 (3-5)"},
+                "target_kcal": {"type": "number", "description": "目标热量 (kcal)，提供则直接采用"},
+                "calorie_adjustment": {"type": "number", "description": "热量调整 (kcal)"},
+                "save_plan": {"type": "boolean", "description": "是否保存为营养规划（默认 true）"},
+                "confirm_plan": {"type": "boolean", "description": "是否直接确认保存（默认 false）"},
+                "source_session_id": {"type": "string", "description": "来源会话 ID（可选）"},
+                "conditions": {
+                    "type": "object",
+                    "description": "伴随疾病/风险",
+                    "properties": {
+                        "diabetes": {"type": "boolean"},
+                        "hypertension": {"type": "boolean"},
+                        "constipation": {"type": "boolean"}
+                    }
+                },
+                "allergies": {"type": "array", "items": {"type": "string"}, "description": "过敏原"},
+                "preferences": {"type": "array", "items": {"type": "string"}, "description": "饮食偏好"}
+            },
+            "required": ["weight_kg", "height_cm", "age", "sex"]
+        }
+    },
+    {
         "name": "retrieve_knowledge",
         "description": "从 CPET 知识库检索相关信息。输入问题，返回相关的临床指南、指标解读等专业知识。",
         "inputSchema": {
@@ -194,6 +256,8 @@ def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         generate_exercise_intensity,
         generate_weekly_schedule,
     )
+    from .nutrition import generate_nutrition_plan
+    from ..plans.storage import create_plan_draft, confirm_plan
 
     tool_map = {
         "calculate_weber_class": lambda args: {
@@ -238,6 +302,12 @@ def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             args.get("include_flexibility", True),
             args.get("phase", "maintenance"),
         ),
+        "generate_nutrition_plan": lambda args: _execute_nutrition_plan(
+            args=args,
+            generate_fn=generate_nutrition_plan,
+            create_plan=create_plan_draft,
+            confirm_plan_fn=confirm_plan,
+        ),
         "retrieve_knowledge": _execute_retrieve_knowledge,
     }
 
@@ -248,6 +318,88 @@ def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         return tool_map[name](arguments)
     except Exception as e:
         return {"error": str(e)}
+
+
+def _nutrition_plan_payload(result: Dict[str, Any], args: Dict[str, Any]) -> Dict[str, Any]:
+    today = date.today()
+    valid_from = args.get("valid_from") or today.isoformat()
+    valid_to = args.get("valid_to") or (today + timedelta(days=6)).isoformat()
+    daily = result.get("daily_targets") or {}
+    return {
+        "title": args.get("title") or "营养规划",
+        "summary": result.get("summary") or "营养规划",
+        "valid_from": valid_from,
+        "valid_to": valid_to,
+        "macros": {
+            "kcal": daily.get("kcal"),
+            "protein_g": daily.get("protein_g"),
+            "carbs_g": daily.get("carbs_g"),
+            "fat_g": daily.get("fat_g"),
+        },
+        "meals": result.get("meals") or [],
+        "constraints": result.get("constraints") or {},
+    }
+
+
+def _execute_nutrition_plan(
+    *,
+    args: Dict[str, Any],
+    generate_fn,
+    create_plan,
+    confirm_plan_fn,
+) -> Dict[str, Any]:
+    result = generate_fn(
+        args["weight_kg"],
+        args["height_cm"],
+        args["age"],
+        args["sex"],
+        args.get("activity_level", "moderate"),
+        args.get("goal", "maintenance"),
+        args.get("diet_type", "balanced"),
+        args.get("meals_per_day", 3),
+        args.get("target_kcal"),
+        args.get("calorie_adjustment"),
+        args.get("conditions"),
+        args.get("allergies"),
+        args.get("preferences"),
+    )
+
+    save_plan = args.get("save_plan")
+    if save_plan is None:
+        save_plan = True
+
+    if save_plan:
+        user_id = args.get("__user_id") or args.get("user_id") or args.get("patient_id")
+        patient_id = args.get("patient_id") or user_id
+        if user_id and patient_id:
+            payload = _nutrition_plan_payload(result, args)
+            draft = create_plan(
+                user_id=user_id,
+                patient_id=patient_id,
+                plan_type="nutrition",
+                payload=payload,
+                summary=payload.get("summary") or "",
+                source_session_id=args.get("source_session_id") or args.get("session_id") or "mcp",
+                source_artifact_ids=None,
+            )
+            if args.get("confirm_plan"):
+                confirmed = confirm_plan_fn(user_id=user_id, draft_id=draft["plan_id"])
+                result["saved_plan"] = {
+                    "plan_id": confirmed.get("plan_id"),
+                    "status": confirmed.get("status"),
+                    "confirmed_at": confirmed.get("confirmed_at"),
+                }
+            else:
+                result["saved_plan"] = {
+                    "plan_id": draft.get("plan_id"),
+                    "status": draft.get("status"),
+                    "confirmed_at": None,
+                }
+            result["plan_payload"] = payload
+        else:
+            result["saved_plan"] = {"error": "missing user_id/patient_id"}
+
+    return result
 
 
 def _execute_retrieve_knowledge(args: Dict[str, Any]) -> Dict[str, Any]:

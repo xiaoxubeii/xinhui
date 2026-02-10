@@ -10,6 +10,7 @@ import {
   FileUp,
   Plus,
   Square,
+  Utensils,
   Watch,
   X,
 } from 'lucide-react';
@@ -38,6 +39,15 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+interface PlanDraft {
+  id: string;
+  planType: 'exercise' | 'nutrition';
+  summary: string;
+  payload: Record<string, unknown>;
+  warnings: string[];
+  status: 'draft' | 'confirmed';
+}
+
 interface ChatViewProps {
   messages: ChatMessage[];
   agentId?: AgentId | null;
@@ -52,12 +62,16 @@ interface ChatViewProps {
   uploadedFiles?: { id: string; name: string; status: string }[];
   isThinking?: boolean;
   streamingContent?: string;
+  errorMessage?: string | null;
+  onClearError?: () => void;
   pdfSuggestion?: 'report' | 'prescription' | null;
   pdfDefaults?: {
     payload: Record<string, unknown>;
     missing: string[];
   } | null;
   onDismissPdfSuggestion?: () => void;
+  planDrafts?: PlanDraft[];
+  onConfirmPlan?: (draftId: string) => void;
 }
 
 export function ChatView({
@@ -74,9 +88,13 @@ export function ChatView({
   uploadedFiles,
   isThinking,
   streamingContent,
+  errorMessage,
+  onClearError,
   pdfSuggestion,
   pdfDefaults,
   onDismissPdfSuggestion,
+  planDrafts,
+  onConfirmPlan,
 }: ChatViewProps) {
   const [inputValue, setInputValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -89,6 +107,7 @@ export function ChatView({
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [dataSource, setDataSource] = useState<'cpet' | 'wearable'>('cpet');
   const isAnalysis = agentId === 'analysis';
+  const isDiet = agentId === 'diet';
   const showUploadCard = agentId !== 'report' && agentId !== 'prescription';
   const quickCardCount = (showUploadCard ? 1 : 0) + (isAnalysis ? 2 : 0);
   const quickGridCols =
@@ -169,6 +188,7 @@ export function ChatView({
     }
     return '是否生成 PDF？';
   }, [pdfDefaults, pdfMissing, pdfSuggestion]);
+
   const thinkingIndicator = isThinking ? (
     <div className="flex justify-start gap-3">
       <div className="mt-0.5 w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
@@ -291,8 +311,16 @@ export function ChatView({
     }
   };
 
+  const handleGenerateNutritionPlan = () => {
+    if (isThinking) return;
+    onSend(
+      '请直接调用 MCP 工具 generate_nutrition_plan 生成营养规划；如缺少体重/身高/年龄/性别，请先向我询问后再生成。'
+    );
+    setInputValue('');
+  };
+
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 min-h-0 flex flex-col">
       <div className="flex-1 overflow-y-auto px-6 pt-6 pb-28 chat-scroll-container" ref={scrollContainerRef}>
         <div className="max-w-[760px] mx-auto">
           <div className="flex items-center justify-between mb-6">
@@ -353,6 +381,14 @@ export function ChatView({
                 </span>
               </div>
               <div className="mt-2 text-[11px] text-gray-400">AI 辅助结论需医师确认</div>
+            </div>
+          )}
+
+          {planDrafts && planDrafts.length > 0 && (
+            <div className="space-y-3 mb-6">
+              {planDrafts.map((draft) => (
+                <PlanDraftCard key={draft.id} draft={draft} onConfirm={onConfirmPlan} />
+              ))}
             </div>
           )}
 
@@ -601,6 +637,23 @@ export function ChatView({
       <div className="sticky bottom-0 w-full bg-white/95 backdrop-blur">
         <div className="max-w-[760px] mx-auto px-6 py-4">
           <div className="relative flex flex-col gap-4 p-6 bg-transparent rounded-3xl border border-gray-200">
+            {errorMessage && (
+              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="font-medium">请求失败</div>
+                  {onClearError && (
+                    <button
+                      type="button"
+                      onClick={onClearError}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+                <div className="mt-1 text-[11px] text-red-600 break-words">{errorMessage}</div>
+              </div>
+            )}
             {uploadedFiles && uploadedFiles.length > 0 && (
               <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                 {uploadedFiles.map((file) => (
@@ -709,6 +762,18 @@ export function ChatView({
                     <span>关键指标快速填充</span>
                   </motion.button>
                 )}
+                {isDiet && (
+                  <motion.button
+                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 0, 0, 0.04)' }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleGenerateNutritionPlan}
+                    disabled={isThinking}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-200 text-xs text-emerald-700 hover:border-emerald-300 transition-colors duration-150 disabled:opacity-50"
+                  >
+                    <Utensils className="w-3.5 h-3.5" />
+                    <span>生成营养规划</span>
+                  </motion.button>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -771,6 +836,93 @@ export function ChatView({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PlanDraftCard({
+  draft,
+  onConfirm,
+}: {
+  draft: PlanDraft;
+  onConfirm?: (draftId: string) => void;
+}) {
+  const isExercise = draft.planType === 'exercise';
+  const payload = (draft.payload ?? {}) as Record<string, unknown>;
+  const goals = (payload['goals'] ?? {}) as Record<string, unknown>;
+  const sessions = Array.isArray(payload['sessions']) ? (payload['sessions'] as Record<string, unknown>[]) : [];
+  const macros = (payload['macros'] ?? {}) as Record<string, unknown>;
+  const meals = Array.isArray(payload['meals']) ? (payload['meals'] as Record<string, unknown>[]) : [];
+  const constraints = (payload['constraints'] ?? {}) as Record<string, unknown>;
+  const mealRows = meals.map((meal, index) => {
+    const mealType = typeof meal['meal_type'] === 'string' ? (meal['meal_type'] as string) : `餐次${index + 1}`;
+    const kcal = meal['kcal'];
+    const foods = Array.isArray(meal['foods']) ? (meal['foods'] as string[]).filter(Boolean) : [];
+    return { mealType, kcal, foods, index };
+  });
+
+  const statusLabel = draft.status === 'confirmed' ? '已确认' : '待确认';
+
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-medium text-gray-900">{isExercise ? '运动处方草案' : '营养规划草案'}</div>
+          <div className="text-xs text-gray-500 mt-1">{draft.summary}</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-gray-500">{statusLabel}</span>
+          {draft.status !== 'confirmed' && (
+            <button
+              type="button"
+              onClick={() => onConfirm?.(draft.id)}
+              className="px-2.5 py-1 rounded-full bg-black text-white text-xs"
+            >
+              确认保存
+            </button>
+          )}
+        </div>
+      </div>
+
+      {draft.warnings?.length > 0 && (
+        <div className="mt-2 text-xs text-amber-600">
+          {draft.warnings.map((w) => (
+            <div key={w}>{w}</div>
+          ))}
+        </div>
+      )}
+
+      {isExercise ? (
+        <div className="mt-3 text-xs text-gray-600 space-y-1">
+          <div>
+            目标：步数 {String(goals['steps_target'] ?? '—')} · 时长 {String(goals['minutes_target'] ?? '—')} 分钟 ·
+            消耗 {String(goals['kcal_target'] ?? '—')} kcal · 心率区间 {String(goals['hr_zone'] ?? '—')}
+          </div>
+          <div>计划条目：{sessions.length} 条</div>
+        </div>
+      ) : (
+        <div className="mt-3 text-xs text-gray-600 space-y-1">
+          <div>
+            宏量：热量 {String(macros['kcal'] ?? '—')} kcal · 蛋白 {String(macros['protein_g'] ?? '—')} g ·
+            碳水 {String(macros['carbs_g'] ?? '—')} g · 脂肪 {String(macros['fat_g'] ?? '—')} g
+          </div>
+          <div>餐次建议：{meals.length} 条</div>
+          {mealRows.length > 0 && (
+            <div className="space-y-1">
+              {mealRows.map((meal) => (
+                <div key={`${meal.mealType}-${meal.index}`}>
+                  {meal.mealType}：{meal.kcal ? `${meal.kcal} kcal` : '—'}
+                  {meal.foods.length > 0 ? ` · ${meal.foods.join('、')}` : ''}
+                </div>
+              ))}
+            </div>
+          )}
+          <div>
+            约束：控糖 {String(constraints['low_sugar'] ?? '—')} · 控盐 {String(constraints['low_salt'] ?? '—')} ·
+            高纤维 {String(constraints['high_fiber'] ?? '—')}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

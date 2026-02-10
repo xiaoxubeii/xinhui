@@ -88,6 +88,7 @@ class Settings:
         self.token_ttl_days: int = int(os.environ.get("XINHUI_TOKEN_TTL_DAYS") or "7")
         self.cookie_secure: bool = (os.environ.get("XINHUI_COOKIE_SECURE") or "").strip() in {"1", "true", "True"}
         self.max_upload_mb: int = int(os.environ.get("XINHUI_MAX_UPLOAD_MB") or "20")
+        self.mcp_token: str = os.environ.get("XINHUI_MCP_TOKEN") or ""
 
         cors = os.environ.get("CPET_CORS_ORIGINS", "*")
         if cors.strip() == "*":

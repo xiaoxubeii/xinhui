@@ -101,6 +101,7 @@ struct DietCreateEntryRequest: Codable {
     let items: [DietFoodItem]
     let notes: String?
     let source: String?
+    let planId: String?
 
     enum CodingKeys: String, CodingKey {
         case deviceId = "device_id"
@@ -109,6 +110,7 @@ struct DietCreateEntryRequest: Codable {
         case items
         case notes
         case source
+        case planId = "plan_id"
     }
 }
 
@@ -135,6 +137,7 @@ struct DietEntry: Codable {
     let notes: String?
     let source: String
     let warnings: [String]
+    let planId: String?
 
     enum CodingKeys: String, CodingKey {
         case entryId = "entry_id"
@@ -147,6 +150,7 @@ struct DietEntry: Codable {
         case notes
         case source
         case warnings
+        case planId = "plan_id"
     }
 }
 
@@ -190,4 +194,3 @@ struct DietSummaryResponse: Codable {
         case days
     }
 }
-

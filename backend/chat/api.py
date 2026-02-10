@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from ..agent_service import ask_agent
 from ..artifacts.models import ArtifactCategory, ArtifactListItem
 from ..auth.security import get_current_user
 from .context import build_agent_context
@@ -150,6 +149,29 @@ def _extract_opencode_delta(event: Any) -> str:
     return ""
 
 
+def _extract_opencode_error(event: Any) -> str:
+    if not isinstance(event, dict):
+        return ""
+    err = event.get("error")
+    if isinstance(err, dict):
+        msg = err.get("message") or err.get("detail") or err.get("error")
+        if isinstance(msg, str):
+            return msg
+    info = event.get("info")
+    if isinstance(info, dict):
+        err = info.get("error")
+        if isinstance(err, dict):
+            data = err.get("data")
+            if isinstance(data, dict):
+                msg = data.get("message")
+                if isinstance(msg, str):
+                    return msg
+            msg = err.get("message")
+            if isinstance(msg, str):
+                return msg
+    return ""
+
+
 @router.post("/sessions/{session_id}/message", summary="Send a message (streams SSE if requested)")
 async def send_chat_message(
     session_id: str,
@@ -188,23 +210,8 @@ async def send_chat_message(
         if opencode_id:
             set_opencode_session_id(session_id=session_id, opencode_session_id=opencode_id)
 
-    async def fallback_response():
-        history_rows = list_messages(session_id=session_id, limit=50)
-        history = [{"role": m["role"], "content": m["content"]} for m in history_rows]
-        try:
-            result = ask_agent(question=content, context=ctx, history=history)
-            answer = result.get("answer") or "暂无可用回答。"
-        except Exception as exc:
-            answer = f"AI 服务不可用：{exc}"
-        append_message(session_id=session_id, role="assistant", content=answer)
-        if wants_stream:
-            payload = {"parts": [{"type": "text", "text": answer}]}
-            data = f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-            return StreamingResponse(iter([data.encode("utf-8")]), media_type="text/event-stream")
-        return JSONResponse(content=ChatMessageCreateResponse(status="ok", answer=answer).model_dump())
-
     if not opencode_id:
-        return await fallback_response()
+        raise HTTPException(status_code=502, detail="OpenCode session unavailable")
 
     try:
         client, resp = await opencode_send_message(
@@ -213,15 +220,31 @@ async def send_chat_message(
             content=full_prompt,
             stream=wants_stream,
         )
-    except Exception:
-        return await fallback_response()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"OpenCode send failed: {exc}") from exc
 
     if resp.status_code >= 400:
+        raw = b""
         try:
-            await resp.aclose()
+            raw = await resp.aread()
         finally:
-            await client.aclose()
-        return await fallback_response()
+            try:
+                await resp.aclose()
+            finally:
+                await client.aclose()
+        err_msg = ""
+        if raw:
+            try:
+                payload = json.loads(raw.decode("utf-8", errors="ignore"))
+                err_msg = _extract_opencode_error(payload)
+                if not err_msg and isinstance(payload, dict):
+                    err_msg = payload.get("message") or payload.get("detail") or ""
+            except Exception:
+                err_msg = raw.decode("utf-8", errors="ignore").strip()
+        detail = f"OpenCode error: {resp.status_code}"
+        if err_msg:
+            detail = f"{detail} - {err_msg}"
+        raise HTTPException(status_code=502, detail=detail)
 
     content_type = resp.headers.get("content-type") or ""
     if wants_stream and "text/event-stream" in content_type:
@@ -289,7 +312,7 @@ async def send_chat_message(
         answer_text = raw.decode("utf-8", errors="ignore").strip()
 
     if not answer_text:
-        return await fallback_response()
+        raise HTTPException(status_code=502, detail="OpenCode returned empty response")
 
     append_message(session_id=session_id, role="assistant", content=answer_text)
     return JSONResponse(content=ChatMessageCreateResponse(status="ok", answer=answer_text).model_dump())

@@ -1,7 +1,7 @@
 ---
 description: 运动风险评估与安全建议
 color: "#ef4444"
-model: qwen/qwen3-max
+model: opencode/minimax-m2.1-free
 temperature: 0.2
 ---
 

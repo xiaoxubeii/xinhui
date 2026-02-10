@@ -57,6 +57,7 @@ class DietCreateEntryRequest(BaseModel):
     items: List[FoodItem] = Field(default_factory=list)
     notes: Optional[str] = Field(None, max_length=2000)
     source: Optional[str] = Field("vision", max_length=64)
+    plan_id: Optional[str] = Field(None, description="关联的营养规划 ID")
 
 
 class DietCreateEntryResponse(BaseModel):
@@ -76,6 +77,7 @@ class DietEntry(BaseModel):
     notes: Optional[str] = None
     source: str = "vision"
     warnings: List[str] = []
+    plan_id: Optional[str] = None
 
 
 class DietEntriesResponse(BaseModel):
@@ -103,4 +105,3 @@ class DietVisionRawResult(BaseModel):
     totals: Optional[NutritionTotals] = None
     warnings: List[str] = []
     extra: Dict[str, object] = Field(default_factory=dict, description="Reserved for model-specific fields")
-

@@ -1,20 +1,31 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "provider": {
-    "qwen": {
-      "name": "Qwen",
-      "npm": "@ai-sdk/openai-compatible",
+    "openai": {
+      "name": "openai",
+      "npm": "@ai-sdk/openai",
       "options": {
-        "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        "apiKey": "{env:QWEN_API_KEY}",
+        "baseURL": "https://code.ppchat.vip/v1",
+        "apiKey": "{env:OPENAI_API_KEY}",
         "timeout": 30000
       },
       "models": {
-        "qwen3-max": { "name": "Qwen3 Max" }
+        "xinhui-0.1": {
+          "name": "xinhui-0.1",
+          "id": "gpt-5.2"
+        }
       }
     }
   },
-  "model": "qwen/qwen3-max",
+  "model": "opencode/minimax-m2.1-free",
+  "small_model": "opencode/minimax-m2.1-free",
+  "mcp": {
+    "xinhui-backend": {
+      "type": "remote",
+      "url": "http://127.0.0.1:8000/api/mcp?token={env:XINHUI_MCP_TOKEN}",
+      "enabled": true
+    }
+  },
   "default_agent": "clinical",
   "agent": {
     // 禁用内置 cpet，使用自定义 agents

@@ -159,6 +159,7 @@ def build_agent_context(
         "agent_id": agent_id,
         "domain_id": _domain_id_for_agent(agent_id),
         "patient_id": user_id,
+        "session_id": session_id,
         "clinical_context": clinical_context,
         "lifestyle_summary": lifestyle,
         "cpet_results": cpet_results,
@@ -166,4 +167,3 @@ def build_agent_context(
         "raw_texts": raw_texts,
         "output_format": "markdown",
     }
-

@@ -7,7 +7,7 @@ CPET 工具 API 端点
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
@@ -36,6 +36,7 @@ from .prescription import (
     generate_exercise_intensity,
     generate_weekly_schedule,
 )
+from .mcp import execute_tool
 
 router = APIRouter(prefix="/api/tools", tags=["Tools"])
 
@@ -172,6 +173,25 @@ class WeeklyScheduleRequest(BaseModel):
     include_resistance: bool = Field(True, description="包含抗阻训练")
     include_flexibility: bool = Field(True, description="包含柔韧性训练")
     phase: str = Field("maintenance", description="康复阶段: initial, improvement, maintenance")
+
+
+class NutritionPlanRequest(BaseModel):
+    weight_kg: float = Field(..., description="体重 (kg)")
+    height_cm: float = Field(..., description="身高 (cm)")
+    age: int = Field(..., description="年龄")
+    sex: str = Field(..., description="性别: male/female/other")
+    activity_level: str = Field("moderate", description="活动水平: sedentary/light/moderate/active/very_active")
+    goal: str = Field("maintenance", description="目标: loss/maintenance/gain")
+    diet_type: str = Field(
+        "balanced",
+        description="饮食类型: balanced/low_carb/high_protein/mediterranean/dash/low_fat/low_sugar/keto",
+    )
+    meals_per_day: int = Field(3, description="餐次数 (3-5)")
+    target_kcal: Optional[float] = Field(None, description="目标热量 (kcal)，提供则直接采用")
+    calorie_adjustment: Optional[float] = Field(None, description="热量调整 (kcal)")
+    conditions: Optional[Dict[str, bool]] = Field(None, description="伴随疾病/风险")
+    allergies: Optional[List[str]] = Field(None, description="过敏原")
+    preferences: Optional[List[str]] = Field(None, description="饮食偏好")
 
 
 # ==================== 计算器端点 ====================
@@ -381,6 +401,15 @@ def api_weekly_schedule(request: WeeklyScheduleRequest):
     )
 
 
+@router.post("/nutrition-plan", summary="营养方案")
+def api_nutrition_plan(request: NutritionPlanRequest):
+    """生成营养方案"""
+    result = execute_tool("generate_nutrition_plan", request.model_dump())
+    if isinstance(result, dict) and result.get("error"):
+        raise HTTPException(status_code=400, detail=str(result["error"]))
+    return result
+
+
 # ==================== 工具列表 ====================
 
 @router.get("/", summary="工具列表")
@@ -409,5 +438,8 @@ def list_tools():
             {"name": "hr-prescription", "description": "心率处方", "method": "POST"},
             {"name": "exercise-intensity", "description": "运动强度处方", "method": "POST"},
             {"name": "weekly-schedule", "description": "每周运动计划", "method": "POST"},
+        ],
+        "nutrition": [
+            {"name": "nutrition-plan", "description": "营养方案", "method": "POST"},
         ],
     }
