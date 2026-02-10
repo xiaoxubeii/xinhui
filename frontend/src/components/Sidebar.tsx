@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Plus,
@@ -126,6 +126,24 @@ export function Sidebar({
   onToggleCollapse,
 }: SidebarProps) {
   const [logoHover, setLogoHover] = useState(false);
+  const orderedAgents = useMemo(() => {
+    const index = agents.findIndex((agent) => agent.id === activeAgentId);
+    if (index <= 0) {
+      return agents;
+    }
+    return [agents[index], ...agents.slice(0, index), ...agents.slice(index + 1)];
+  }, [agents, activeAgentId]);
+
+  const orderedSessions = useMemo(() => {
+    if (!activeSessionId) {
+      return sessions;
+    }
+    const index = sessions.findIndex((session) => session.id === activeSessionId);
+    if (index <= 0) {
+      return sessions;
+    }
+    return [sessions[index], ...sessions.slice(0, index), ...sessions.slice(index + 1)];
+  }, [sessions, activeSessionId]);
 
   return (
     <motion.aside
@@ -207,7 +225,7 @@ export function Sidebar({
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto px-2">
         <SidebarSection title="领域入口" collapsed={collapsed}>
-          {agents.map((agent) => (
+          {orderedAgents.map((agent) => (
             <SidebarItem
               key={agent.id}
               icon={agent.icon}
@@ -241,10 +259,10 @@ export function Sidebar({
         </SidebarSection>
 
         <SidebarSection title="历史会话" collapsed={collapsed}>
-          {sessions.length === 0 ? (
+          {orderedSessions.length === 0 ? (
             <SidebarItem icon={<Clock className="w-4 h-4" />} label="暂无历史会话" disabled collapsed={collapsed} />
           ) : (
-            sessions.map((session) => (
+            orderedSessions.map((session) => (
               <SidebarItem
                 key={session.id}
                 icon={<Clock className="w-4 h-4" />}

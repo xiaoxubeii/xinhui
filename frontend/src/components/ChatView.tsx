@@ -5,13 +5,11 @@ import {
   ArrowUp,
   Bot,
   ChevronDown,
-  ClipboardList,
   FileText,
   FileUp,
   Plus,
   Square,
   Utensils,
-  Watch,
   X,
 } from 'lucide-react';
 import {
@@ -105,11 +103,11 @@ export function ChatView({
   const [pdfFileName, setPdfFileName] = useState<string>('cpet_report.pdf');
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
-  const [dataSource, setDataSource] = useState<'cpet' | 'wearable'>('cpet');
+  const [dataSource] = useState<'cpet' | 'wearable'>('cpet');
   const isAnalysis = agentId === 'analysis';
   const isDiet = agentId === 'diet';
-  const showUploadCard = agentId !== 'report' && agentId !== 'prescription';
-  const quickCardCount = (showUploadCard ? 1 : 0) + (isAnalysis ? 2 : 0);
+  const showUploadCard = agentId !== 'report' && agentId !== 'prescription' && !isAnalysis;
+  const quickCardCount = showUploadCard ? 1 : 0;
   const quickGridCols =
     quickCardCount >= 3 ? 'sm:grid-cols-3' : quickCardCount === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-1';
 
@@ -407,35 +405,6 @@ export function ChatView({
                       </div>
                       <div className="mt-3 text-sm font-medium text-gray-900">上传 CPET</div>
                       <div className="mt-1 text-xs text-gray-500">支持 PDF/CSV/JSON</div>
-                    </button>
-                  )}
-                  {isAnalysis && (
-                    <button
-                      type="button"
-                      onClick={() => setDataSource('wearable')}
-                      className="rounded-2xl border border-gray-200 bg-white p-4 text-left hover:border-gray-300 transition-colors"
-                    >
-                      <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                        <Watch className="w-4 h-4" />
-                      </div>
-                      <div className="mt-3 text-sm font-medium text-gray-900">连接手表</div>
-                      <div className="mt-1 text-xs text-gray-500">同步运动与心率数据</div>
-                    </button>
-                  )}
-                  {isAnalysis && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInputValue('请录入关键指标：VO2peak、HRmax、HRrest、METS、AT 时间。');
-                        inputRef.current?.focus();
-                      }}
-                      className="rounded-2xl border border-gray-200 bg-white p-4 text-left hover:border-gray-300 transition-colors"
-                    >
-                      <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">
-                        <ClipboardList className="w-4 h-4" />
-                      </div>
-                      <div className="mt-3 text-sm font-medium text-gray-900">手动输入关键指标</div>
-                      <div className="mt-1 text-xs text-gray-500">快速补全缺失字段</div>
                     </button>
                   )}
                 </div>
@@ -748,20 +717,6 @@ export function ChatView({
                     )}
                   </span>
                 </motion.button>
-                {isAnalysis && (
-                  <motion.button
-                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 0, 0, 0.04)' }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setInputValue('关键指标：VO2peak= , HRmax= , HRrest= , METS= , AT 时间= 。');
-                      inputRef.current?.focus();
-                    }}
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-gray-200 text-xs text-gray-600 hover:border-gray-300 transition-colors duration-150"
-                  >
-                    <ClipboardList className="w-3.5 h-3.5" />
-                    <span>关键指标快速填充</span>
-                  </motion.button>
-                )}
                 {isDiet && (
                   <motion.button
                     whileHover={{ scale: 1.02, backgroundColor: 'rgba(0, 0, 0, 0.04)' }}
@@ -777,28 +732,6 @@ export function ChatView({
               </div>
 
               <div className="flex items-center gap-2">
-                {isAnalysis && (
-                  <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white p-1 text-xs text-gray-600">
-                    <button
-                      type="button"
-                      onClick={() => setDataSource('cpet')}
-                      className={`px-2.5 py-1 rounded-full ${
-                        dataSource === 'cpet' ? 'bg-black text-white' : 'text-gray-600'
-                      }`}
-                    >
-                      CPET
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDataSource('wearable')}
-                      className={`px-2.5 py-1 rounded-full ${
-                        dataSource === 'wearable' ? 'bg-black text-white' : 'text-gray-600'
-                      }`}
-                    >
-                      手表
-                    </button>
-                  </div>
-                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <motion.button
