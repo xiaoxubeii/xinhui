@@ -108,8 +108,7 @@ export function ChatView({
   const isDiet = agentId === 'diet';
   const showUploadCard = agentId !== 'report' && agentId !== 'prescription' && !isAnalysis;
   const quickCardCount = showUploadCard ? 1 : 0;
-  const quickGridCols =
-    quickCardCount >= 3 ? 'sm:grid-cols-3' : quickCardCount === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-1';
+  const quickGridCols = 'sm:grid-cols-1';
 
   const pdfLabel = pdfSuggestion === 'prescription' ? '运动处方 PDF' : 'CPET 报告 PDF';
   const pdfMissing = pdfDefaults?.missing ?? [];
