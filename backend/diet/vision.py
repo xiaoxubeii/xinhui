@@ -235,8 +235,22 @@ def recognize_food(
                     for part in msg_parts
                     if isinstance(part, dict) and part.get("type") == "text"
                 )
-    json_str = _extract_json(content or "")
-    parsed = json.loads(json_str)
+    parsed: Dict[str, Any]
+    try:
+        json_str = _extract_json(content or "")
+        parsed = json.loads(json_str)
+    except Exception as exc:
+        # Don't fail the whole request when the model returns non-JSON (or empty) output.
+        # The iOS review screen can still let users manually fill in food items.
+        parsed = {
+            "items": [],
+            "totals": None,
+            "warnings": [
+                "模型输出无法解析，请手动添加/修改食物条目后再保存。",
+            ],
+            "raw_text": (content or "")[:800],
+            "parse_error": str(exc),
+        }
 
     # Accept extra fields but validate known ones.
     known = {

@@ -190,9 +190,9 @@ struct AgentAskContext: Codable, Equatable {
     init(context: AgentContext?, attachments: [AgentAskAttachment]?) {
         if let context {
             deviceId = context.deviceId
-            generatedAt = DateFormatters.iso8601.string(from: context.generatedAt)
+            generatedAt = DateFormatters.iso8601String(from: context.generatedAt)
             if let lastSync = context.lastSyncDate {
-                lastSyncAt = DateFormatters.iso8601.string(from: lastSync)
+                lastSyncAt = DateFormatters.iso8601String(from: lastSync)
             } else {
                 lastSyncAt = nil
             }

@@ -34,6 +34,9 @@ final class SyncViewModel: ObservableObject {
                     }
                 )
                 lastResponse = response
+            } catch is CancellationError {
+                currentError = nil
+                progress.phase = .idle
             } catch let error as SyncError {
                 currentError = error
                 progress.phase = .failed

@@ -218,6 +218,7 @@ struct DietReviewView: View {
 
     private func recognize() async {
         isRecognizing = true
+        defer { isRecognizing = false }
         currentError = nil
         warnings = []
         editableItems = []
@@ -226,13 +227,13 @@ struct DietReviewView: View {
             let result = try await viewModel.recognize(image: image)
             warnings = result.warnings
             editableItems = result.items.map { EditableFoodItem(from: $0) }
+        } catch is CancellationError {
+            return
         } catch let error as SyncError {
             currentError = error
         } catch {
             currentError = .networkError(underlying: error)
         }
-
-        isRecognizing = false
     }
 
     private func save() async {
@@ -249,6 +250,8 @@ struct DietReviewView: View {
             )
             onSaved()
             dismiss()
+        } catch is CancellationError {
+            return
         } catch let error as SyncError {
             currentError = error
         } catch {

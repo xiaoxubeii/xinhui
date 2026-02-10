@@ -32,8 +32,8 @@ final class DietViewModel: ObservableObject {
 
         let now = Date()
         let startDate = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: now))!
-        let start = DateFormatters.dateOnly.string(from: startDate)
-        let end = DateFormatters.dateOnly.string(from: now)
+        let start = DateFormatters.dateOnlyString(from: startDate)
+        let end = DateFormatters.dateOnlyString(from: now)
 
         do {
             async let summaryTask = api.fetchDietSummary(deviceId: deviceId, start: start, end: end)
@@ -43,26 +43,32 @@ final class DietViewModel: ObservableObject {
             last7Days = summary.days
             recentEntries = entries.entries
 
-            let today = DateFormatters.dateOnly.string(from: now)
+            let today = DateFormatters.dateOnlyString(from: now)
             todayTotals = summary.days.first(where: { $0.date == today })?.totals ?? .zero
+        } catch is CancellationError {
+            return
         } catch let error as SyncError {
             currentError = error
         } catch {
             currentError = .networkError(underlying: error)
         }
 
-        let today = DateFormatters.dateOnly.string(from: now)
+        let today = DateFormatters.dateOnlyString(from: now)
         var planOwnerId = deviceId
         do {
             let me = try await api.fetchMe()
             userId = me.id
             planOwnerId = me.id
+        } catch is CancellationError {
+            return
         } catch {
             userId = ""
         }
 
         do {
             nutritionPlan = try await api.fetchNutritionPlan(deviceId: planOwnerId, date: today)
+        } catch is CancellationError {
+            return
         } catch {
             nutritionPlan = nil
         }
@@ -76,7 +82,7 @@ final class DietViewModel: ObservableObject {
 
         let payload = DietRecognizeRequest(
             deviceId: deviceId,
-            capturedAt: DateFormatters.iso8601.string(from: Date()),
+            capturedAt: DateFormatters.iso8601String(from: Date()),
             imageMime: "image/jpeg",
             imageBase64: base64,
             locale: "zh-CN"
@@ -93,7 +99,7 @@ final class DietViewModel: ObservableObject {
     ) async throws -> DietCreateEntryResponse {
         let payload = DietCreateEntryRequest(
             deviceId: DeviceIdentifier.current,
-            eatenAt: DateFormatters.iso8601.string(from: eatenAt),
+            eatenAt: DateFormatters.iso8601String(from: eatenAt),
             mealType: mealType,
             items: items,
             notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines),

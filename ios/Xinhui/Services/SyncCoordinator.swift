@@ -28,8 +28,8 @@ final class SyncCoordinator {
         // 2. 逐类型查询
         var payload = HealthSyncRequest(
             deviceId: DeviceIdentifier.current,
-            syncStart: DateFormatters.iso8601.string(from: start),
-            syncEnd: DateFormatters.iso8601.string(from: end)
+            syncStart: DateFormatters.iso8601String(from: start),
+            syncEnd: DateFormatters.iso8601String(from: end)
         )
 
         for dataType in HealthDataType.allCases where dataTypes.contains(dataType) {

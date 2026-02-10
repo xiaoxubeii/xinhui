@@ -51,18 +51,22 @@ final class ExerciseViewModel: ObservableObject {
             currentError = .healthKitNotAvailable
         }
 
-        let today = DateFormatters.dateOnly.string(from: now)
+        let today = DateFormatters.dateOnlyString(from: now)
         var planOwnerId = deviceId
         do {
             let me = try await api.fetchMe()
             userId = me.id
             planOwnerId = me.id
+        } catch is CancellationError {
+            return
         } catch {
             userId = ""
         }
 
         do {
             exercisePlan = try await api.fetchExercisePlan(deviceId: planOwnerId, date: today)
+        } catch is CancellationError {
+            return
         } catch {
             exercisePlan = nil
         }

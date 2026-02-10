@@ -71,7 +71,7 @@ final class HealthKitManager {
                 results?.enumerateStatistics(from: start, to: end) { stats, _ in
                     if let sum = stats.sumQuantity() {
                         let count = Int(sum.doubleValue(for: .count()))
-                        let dateStr = DateFormatters.dateOnly.string(from: stats.startDate)
+                        let dateStr = DateFormatters.dateOnlyString(from: stats.startDate)
                         items.append(SyncDailySteps(date: dateStr, count: count))
                     }
                 }
@@ -89,7 +89,7 @@ final class HealthKitManager {
         let unit = HKUnit.count().unitDivided(by: .minute())
         return samples.map { s in
             SyncHeartRateSample(
-                timestamp: DateFormatters.iso8601.string(from: s.startDate),
+                timestamp: DateFormatters.iso8601String(from: s.startDate),
                 bpm: s.quantity.doubleValue(for: unit)
             )
         }
@@ -103,7 +103,7 @@ final class HealthKitManager {
         let unit = HKUnit.count().unitDivided(by: .minute())
         return samples.map { s in
             SyncRestingHeartRate(
-                date: DateFormatters.dateOnly.string(from: s.startDate),
+                date: DateFormatters.dateOnlyString(from: s.startDate),
                 bpm: s.quantity.doubleValue(for: unit)
             )
         }
@@ -116,7 +116,7 @@ final class HealthKitManager {
         let samples = try await fetchQuantitySamples(type: type, start: start, end: end)
         return samples.map { s in
             SyncSpO2Reading(
-                timestamp: DateFormatters.iso8601.string(from: s.startDate),
+                timestamp: DateFormatters.iso8601String(from: s.startDate),
                 percentage: s.quantity.doubleValue(for: .percent()) * 100.0
             )
         }
@@ -138,8 +138,8 @@ final class HealthKitManager {
                 if let error { continuation.resume(throwing: SyncError.queryFailed(underlying: error)); return }
                 let sessions = (results as? [HKCategorySample] ?? []).map { sample in
                     SyncSleepSession(
-                        startTime: DateFormatters.iso8601.string(from: sample.startDate),
-                        endTime: DateFormatters.iso8601.string(from: sample.endDate),
+                        startTime: DateFormatters.iso8601String(from: sample.startDate),
+                        endTime: DateFormatters.iso8601String(from: sample.endDate),
                         stage: Self.sleepStageString(sample.value)
                     )
                 }
@@ -164,8 +164,8 @@ final class HealthKitManager {
                 if let error { continuation.resume(throwing: SyncError.queryFailed(underlying: error)); return }
                 let records = (results as? [HKWorkout] ?? []).map { w in
                     SyncWorkoutRecord(
-                        startTime: DateFormatters.iso8601.string(from: w.startDate),
-                        endTime: DateFormatters.iso8601.string(from: w.endDate),
+                        startTime: DateFormatters.iso8601String(from: w.startDate),
+                        endTime: DateFormatters.iso8601String(from: w.endDate),
                         activityType: Self.workoutActivityName(w.workoutActivityType),
                         durationSeconds: w.duration,
                         totalEnergyKcal: w.totalEnergyBurned?.doubleValue(for: .kilocalorie()),

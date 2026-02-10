@@ -374,7 +374,7 @@ private struct TrendRow: View {
     let maxSteps: Double
 
     private var dateText: String {
-        if let date = DateFormatters.dateOnly.date(from: point.date) {
+        if let date = DateFormatters.dateOnlyDate(from: point.date) {
             return DateFormatters.displayDate.string(from: date)
         }
         return point.date

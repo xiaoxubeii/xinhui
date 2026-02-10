@@ -144,7 +144,7 @@ private struct DietEntryRow: View {
     let entry: DietEntry
 
     private var timeText: String {
-        if let d = DateFormatters.iso8601.date(from: entry.eatenAt) {
+        if let d = DateFormatters.iso8601Date(from: entry.eatenAt) {
             return DateFormatters.displayDateTime.string(from: d)
         }
         return entry.eatenAt

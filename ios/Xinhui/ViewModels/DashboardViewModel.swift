@@ -118,7 +118,7 @@ final class DashboardViewModel: ObservableObject {
         ensureDailyState()
         let now = Date()
         do {
-            let today = DateFormatters.dateOnly.string(from: now)
+            let today = DateFormatters.dateOnlyString(from: now)
             let summary = try await api.fetchDietSummary(deviceId: deviceId, start: today, end: today)
             todayIntakeKcal = summary.totals.caloriesKcal
             todayNutritionTotals = summary.totals
@@ -132,10 +132,12 @@ final class DashboardViewModel: ObservableObject {
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
         do {
-            let today = DateFormatters.dateOnly.string(from: now)
-            let start30 = DateFormatters.dateOnly.string(from: Calendar.current.date(byAdding: .day, value: -29, to: startOfDay) ?? startOfDay)
+            let today = DateFormatters.dateOnlyString(from: now)
+            let start30 = DateFormatters.dateOnlyString(from: Calendar.current.date(byAdding: .day, value: -29, to: startOfDay) ?? startOfDay)
             let summary = try await api.fetchLifestyleSummary(deviceId: deviceId, start: start30, end: today)
             applyLifestyleSummary(summary, today: today)
+        } catch is CancellationError {
+            return
         } catch {
             if let syncError = error as? SyncError {
                 dashboardError = syncError.errorDescription ?? "Dashboard 汇总数据获取失败"
@@ -149,24 +151,30 @@ final class DashboardViewModel: ObservableObject {
 
     private func refreshPlans() async {
         let now = Date()
-        let today = DateFormatters.dateOnly.string(from: now)
+        let today = DateFormatters.dateOnlyString(from: now)
         var planOwnerId = deviceId
         do {
             let me = try await api.fetchMe()
             userId = me.id
             planOwnerId = me.id
+        } catch is CancellationError {
+            return
         } catch {
             userId = ""
         }
 
         do {
             exercisePlan = try await api.fetchExercisePlan(deviceId: planOwnerId, date: today)
+        } catch is CancellationError {
+            return
         } catch {
             exercisePlan = nil
         }
 
         do {
             nutritionPlan = try await api.fetchNutritionPlan(deviceId: planOwnerId, date: today)
+        } catch is CancellationError {
+            return
         } catch {
             nutritionPlan = nil
         }
@@ -223,25 +231,29 @@ final class DashboardViewModel: ObservableObject {
             let totalSeconds = workouts.reduce(0.0) { acc, w in
                 acc + w.durationSeconds
             }
-            let minutes = totalSeconds / 60.0
-            if let existing = todayWorkoutMinutes {
-                if minutes >= existing {
+            if totalSeconds > 0 {
+                let minutes = totalSeconds / 60.0
+                if let existing = todayWorkoutMinutes {
+                    if minutes >= existing {
+                        todayWorkoutMinutes = minutes
+                    }
+                } else {
                     todayWorkoutMinutes = minutes
                 }
-            } else {
-                todayWorkoutMinutes = minutes
             }
 
             let kcalSum = workouts.reduce(0.0) { acc, w in
                 acc + (w.totalEnergyKcal ?? 0.0)
             }
-            let kcal = kcalSum
-            if let existing = todayBurnedKcal {
-                if kcal >= existing {
+            if kcalSum > 0 {
+                let kcal = kcalSum
+                if let existing = todayBurnedKcal {
+                    if kcal >= existing {
+                        todayBurnedKcal = kcal
+                    }
+                } else {
                     todayBurnedKcal = kcal
                 }
-            } else {
-                todayBurnedKcal = kcal
             }
 
             persistCachedMetrics()
@@ -299,10 +311,34 @@ final class DashboardViewModel: ObservableObject {
         let days = summary.days.sorted { $0.date < $1.date }
         let todayDay = days.last(where: { $0.date == today }) ?? days.last
 
-        if let steps = todayDay?.steps { todaySteps = steps }
-        if let sleep = todayDay?.sleepHours { lastSleepHours = sleep }
-        if let intake = todayDay?.dietIntakeKcal { todayIntakeKcal = intake }
-        if let burned = todayDay?.workoutEnergyKcal { todayBurnedKcal = burned }
+        if let steps = todayDay?.steps {
+            if todaySteps == 0 || steps >= todaySteps {
+                todaySteps = steps
+            }
+        }
+        if let sleep = todayDay?.sleepHours {
+            if lastSleepHours == nil || sleep > 0 {
+                lastSleepHours = sleep
+            }
+        }
+        if let intake = todayDay?.dietIntakeKcal {
+            if let existing = todayIntakeKcal {
+                if intake >= existing {
+                    todayIntakeKcal = intake
+                }
+            } else {
+                todayIntakeKcal = intake
+            }
+        }
+        if let burned = todayDay?.workoutEnergyKcal {
+            if let existing = todayBurnedKcal {
+                if burned >= existing {
+                    todayBurnedKcal = burned
+                }
+            } else {
+                todayBurnedKcal = burned
+            }
+        }
 
         let trendDays7 = Array(days.suffix(7))
         let trendDays30 = Array(days.suffix(30))
@@ -344,7 +380,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func ensureDailyState(now: Date = Date()) {
-        let key = DateFormatters.dateOnly.string(from: now)
+        let key = DateFormatters.dateOnlyString(from: now)
         if currentDayKey.isEmpty {
             currentDayKey = key
         }
@@ -369,7 +405,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func restoreCachedMetrics() {
-        let todayKey = DateFormatters.dateOnly.string(from: Date())
+        let todayKey = DateFormatters.dateOnlyString(from: Date())
         currentDayKey = todayKey
 
         guard defaults.string(forKey: Constants.dashboardCacheDateKey) == todayKey else {
@@ -401,7 +437,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func persistCachedMetrics() {
-        defaults.set(currentDayKey.isEmpty ? DateFormatters.dateOnly.string(from: Date()) : currentDayKey, forKey: Constants.dashboardCacheDateKey)
+        defaults.set(currentDayKey.isEmpty ? DateFormatters.dateOnlyString(from: Date()) : currentDayKey, forKey: Constants.dashboardCacheDateKey)
         defaults.set(todaySteps, forKey: Constants.dashboardCacheStepsKey)
 
         if let hr = latestHeartRate {

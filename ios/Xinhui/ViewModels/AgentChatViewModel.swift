@@ -84,8 +84,8 @@ final class AgentChatViewModel: ObservableObject {
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: startOfDay)!
         if let sessions = try? await healthKit.fetchSleepSessions(start: yesterday, end: startOfDay) {
             let totalSeconds = sessions.reduce(0.0) { acc, s in
-                guard let start = DateFormatters.iso8601.date(from: s.startTime),
-                      let end = DateFormatters.iso8601.date(from: s.endTime) else { return acc }
+                guard let start = DateFormatters.iso8601Date(from: s.startTime),
+                      let end = DateFormatters.iso8601Date(from: s.endTime) else { return acc }
                 return acc + end.timeIntervalSince(start)
             }
             if totalSeconds > 0 {
@@ -101,7 +101,7 @@ final class AgentChatViewModel: ObservableObject {
         }
 
         do {
-            let today = DateFormatters.dateOnly.string(from: now)
+            let today = DateFormatters.dateOnlyString(from: now)
             let summary = try await api.fetchDietSummary(deviceId: deviceId, start: today, end: today)
             todayIntakeKcal = summary.totals.caloriesKcal
         } catch {
