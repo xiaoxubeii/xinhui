@@ -198,22 +198,46 @@ final class DashboardViewModel: ObservableObject {
             let totalSeconds = workouts.reduce(0.0) { acc, w in
                 acc + w.durationSeconds
             }
-            todayWorkoutMinutes = totalSeconds > 0 ? totalSeconds / 60.0 : nil
+            todayWorkoutMinutes = totalSeconds / 60.0
             let kcal = workouts.reduce(0.0) { acc, w in
                 acc + (w.totalEnergyKcal ?? 0.0)
             }
-            todayBurnedKcal = kcal > 0 ? kcal : nil
+            todayBurnedKcal = kcal
         }
     }
 
     private func applySummary(_ summary: DashboardSummaryResponse) {
         if let today = summary.today {
-            if let steps = today.steps { todaySteps = steps }
-            if let hr = today.latestHeartRate { latestHeartRate = hr }
-            if let spo2 = today.latestSpO2 { latestSpO2 = spo2 }
-            if let sleep = today.sleepHours { lastSleepHours = sleep }
-            if let intake = today.intakeKcal { todayIntakeKcal = intake }
-            if let burned = today.burnedKcal { todayBurnedKcal = burned }
+            if let steps = today.steps {
+                if todaySteps == 0 || steps > 0 {
+                    todaySteps = steps
+                }
+            }
+            if let hr = today.latestHeartRate {
+                if latestHeartRate == nil || hr > 0 {
+                    latestHeartRate = hr
+                }
+            }
+            if let spo2 = today.latestSpO2 {
+                if latestSpO2 == nil || spo2 > 0 {
+                    latestSpO2 = spo2
+                }
+            }
+            if let sleep = today.sleepHours {
+                if lastSleepHours == nil || sleep > 0 {
+                    lastSleepHours = sleep
+                }
+            }
+            if let intake = today.intakeKcal {
+                if todayIntakeKcal == nil || intake > 0 {
+                    todayIntakeKcal = intake
+                }
+            }
+            if let burned = today.burnedKcal {
+                if todayBurnedKcal == nil || burned > 0 {
+                    todayBurnedKcal = burned
+                }
+            }
         }
         trend7d = summary.trend7d ?? []
         trend30d = summary.trend30d ?? []
