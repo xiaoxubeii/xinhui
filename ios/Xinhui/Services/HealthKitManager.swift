@@ -4,6 +4,7 @@ import HealthKit
 /// 封装所有 HealthKit 授权与查询操作。
 final class HealthKitManager {
     private let store = HKHealthStore()
+    private var observerQueries: [HKObserverQuery] = []
 
     var isAvailable: Bool {
         HKHealthStore.isHealthDataAvailable()
@@ -14,6 +15,37 @@ final class HealthKitManager {
     func requestAuthorization() async throws {
         guard isAvailable else { throw SyncError.healthKitNotAvailable }
         try await store.requestAuthorization(toShare: [], read: Self.readTypes())
+    }
+
+    // MARK: - Live Updates
+
+    func startLiveUpdates(
+        onSteps: @escaping () -> Void,
+        onHeartRate: @escaping () -> Void,
+        onSpO2: @escaping () -> Void,
+        onSleep: @escaping () -> Void,
+        onWorkouts: @escaping () -> Void
+    ) {
+        stopLiveUpdates()
+
+        if let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) {
+            startObserver(for: stepType, onUpdate: onSteps)
+        }
+        if let heartRate = HKQuantityType.quantityType(forIdentifier: .heartRate) {
+            startObserver(for: heartRate, onUpdate: onHeartRate)
+        }
+        if let spo2 = HKQuantityType.quantityType(forIdentifier: .oxygenSaturation) {
+            startObserver(for: spo2, onUpdate: onSpO2)
+        }
+        if let sleep = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis) {
+            startObserver(for: sleep, onUpdate: onSleep)
+        }
+        startObserver(for: HKWorkoutType.workoutType(), onUpdate: onWorkouts)
+    }
+
+    func stopLiveUpdates() {
+        observerQueries.forEach { store.stop($0) }
+        observerQueries.removeAll()
     }
 
     // MARK: - Steps (按天聚合)
@@ -187,6 +219,16 @@ final class HealthKitManager {
             }
             store.execute(query)
         }
+    }
+
+    private func startObserver(for type: HKSampleType, onUpdate: @escaping () -> Void) {
+        let query = HKObserverQuery(sampleType: type, predicate: nil) { _, completionHandler, error in
+            defer { completionHandler() }
+            guard error == nil else { return }
+            onUpdate()
+        }
+        observerQueries.append(query)
+        store.execute(query)
     }
 
     private static func sleepStageString(_ value: Int) -> String {

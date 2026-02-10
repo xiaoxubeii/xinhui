@@ -29,6 +29,7 @@ struct SyncProgressView: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
     }
 
     private var tintColor: Color {

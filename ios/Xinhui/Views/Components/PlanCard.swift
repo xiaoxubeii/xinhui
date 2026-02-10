@@ -23,6 +23,7 @@ struct PlanCard: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
     }
 }

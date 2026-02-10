@@ -139,6 +139,7 @@ struct DashboardView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("心慧智问")
             .onAppear { viewModel.load() }
+            .onDisappear { viewModel.stopLiveUpdates() }
             .refreshable { await viewModel.refreshTodayData() }
         }
     }
@@ -209,6 +210,7 @@ private struct BalanceCard: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
@@ -238,6 +240,7 @@ private struct TargetsSection: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
@@ -314,6 +317,7 @@ private struct TrendSection: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
@@ -432,6 +436,7 @@ private struct PlanCompletionCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.systemBackground))
         .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
         .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
     }
 }
@@ -457,6 +462,7 @@ private struct AgentEntryCard: View {
         .padding()
         .background(Color(.systemBackground))
         .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
         .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
     }
 }
