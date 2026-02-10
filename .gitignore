@@ -74,6 +74,13 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
+# Xcode
+DerivedData/
+*.xcuserstate
+**/xcuserdata/
+**/*.xcuserdatad/
+ios/Xinhui/Xinhui.xcodeproj/
+
 # Project specific
 annotations.db
 
