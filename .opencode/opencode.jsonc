@@ -33,6 +33,7 @@
     }
   },
   "model": "opencode/minimax-m2.1-free",
+  "diet_vision_model": "zhipu/glm-4.6v-flash",
   "small_model": "opencode/minimax-m2.1-free",
   "mcp": {
     "xinhui-backend": {

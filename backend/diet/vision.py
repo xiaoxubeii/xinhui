@@ -34,22 +34,67 @@ def _strip_jsonc(text: str) -> str:
     return text
 
 
-def _resolve_default_model() -> str | None:
+def _load_opencode_config() -> Dict[str, Any] | None:
+    candidates = []
     config_path = settings.agent_config_path
-    if not config_path or not config_path.exists():
+    if config_path:
+        candidates.append(config_path)
+    opencode_dir = settings.opencode_directory
+    candidates.extend(
+        [
+            opencode_dir / ".opencode" / "opencode.jsonc",
+            opencode_dir / ".opencode" / "opencode.json",
+        ]
+    )
+    for path in candidates:
+        if not path or not path.exists():
+            continue
+        try:
+            raw = path.read_text(encoding="utf-8")
+            return json.loads(_strip_jsonc(raw))
+        except Exception:
+            continue
+    return None
+
+
+def _resolve_default_model(config: Dict[str, Any] | None) -> str | None:
+    if not config:
         return None
-    try:
-        raw = config_path.read_text(encoding="utf-8")
-        parsed = json.loads(_strip_jsonc(raw))
-    except Exception:
-        return None
-    model = parsed.get("model") or parsed.get("agent", {}).get("model")
+    model = config.get("model") or config.get("agent", {}).get("model")
     return model if isinstance(model, str) and model else None
+
+
+def _resolve_vision_model(config: Dict[str, Any] | None) -> str | None:
+    if not config:
+        return None
+    for key in ("diet_vision_model", "vision_model"):
+        value = config.get(key)
+        if isinstance(value, str) and value:
+            return value
+    diet = config.get("diet")
+    if isinstance(diet, dict):
+        for key in ("vision_model", "model"):
+            value = diet.get(key)
+            if isinstance(value, str) and value:
+                return value
+    vision = config.get("vision")
+    if isinstance(vision, dict):
+        for key in ("model", "vision_model"):
+            value = vision.get(key)
+            if isinstance(value, str) and value:
+                return value
+    return None
 
 
 def resolve_vision_settings() -> VisionSettings:
     base_url = (os.environ.get("DIET_VISION_BASE_URL") or settings.opencode_base_url).rstrip("/")
-    model = os.environ.get("DIET_VISION_MODEL") or _resolve_default_model() or "opencode/minimax-m2.1-free"
+    config = _load_opencode_config()
+    model = (
+        os.environ.get("DIET_VISION_MODEL")
+        or _resolve_vision_model(config)
+        or _resolve_default_model(config)
+        or "opencode/minimax-m2.1-free"
+    )
     timeout = float(os.environ.get("DIET_VISION_TIMEOUT") or settings.qwen_timeout)
     temperature = float(os.environ.get("DIET_VISION_TEMPERATURE") or 0.2)
     max_tokens = int(os.environ.get("DIET_VISION_MAX_TOKENS") or 800)
