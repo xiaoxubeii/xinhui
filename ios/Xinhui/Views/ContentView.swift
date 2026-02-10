@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var dashboardViewModel = DashboardViewModel()
+
     var body: some View {
         TabView {
-            DashboardView()
+            DashboardView(viewModel: dashboardViewModel)
                 .tabItem {
                     Label("首页", systemImage: "heart.text.square")
                 }

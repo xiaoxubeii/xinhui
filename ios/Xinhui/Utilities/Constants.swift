@@ -19,4 +19,13 @@ enum Constants {
     static let lastAutoSyncSuccessDateKey = "xinhui_last_auto_sync_success"
     static let lastAutoSyncErrorKey = "xinhui_last_auto_sync_error"
 
+    // Dashboard cached metrics (keeps homepage stable across view reloads).
+    static let dashboardCacheDateKey = "xinhui_dashboard_cache_date"
+    static let dashboardCacheStepsKey = "xinhui_dashboard_cache_steps"
+    static let dashboardCacheHeartRateKey = "xinhui_dashboard_cache_hr"
+    static let dashboardCacheSpO2Key = "xinhui_dashboard_cache_spo2"
+    static let dashboardCacheSleepHoursKey = "xinhui_dashboard_cache_sleep_hours"
+    static let dashboardCacheIntakeKcalKey = "xinhui_dashboard_cache_intake_kcal"
+    static let dashboardCacheBurnedKcalKey = "xinhui_dashboard_cache_burned_kcal"
+    static let dashboardCacheWorkoutMinutesKey = "xinhui_dashboard_cache_workout_minutes"
 }

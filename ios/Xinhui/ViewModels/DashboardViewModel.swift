@@ -26,20 +26,30 @@ final class DashboardViewModel: ObservableObject {
     private let api = APIClient()
     private var isLiveUpdatesActive = false
     private var hasHealthKitAuthorization = false
+    private let defaults = UserDefaults.standard
+    private var currentDayKey: String = ""
+    private var didRestoreCache = false
 
     func load() {
         deviceId = DeviceIdentifier.current
-        lastSyncDate = UserDefaults.standard.object(forKey: Constants.lastSyncDateKey) as? Date
+        lastSyncDate = defaults.object(forKey: Constants.lastSyncDateKey) as? Date
+        ensureDailyState()
+        if !didRestoreCache {
+            restoreCachedMetrics()
+            didRestoreCache = true
+        }
         startLiveUpdates()
         Task { await refreshTodayData() }
     }
 
     func refreshTodayData() async {
+        ensureDailyState()
         dashboardError = ""
         await refreshHealthMetrics()
         await refreshDietSummary()
         await refreshDashboardSummary()
         await refreshPlans()
+        persistCachedMetrics()
     }
 
     func startLiveUpdates() {
@@ -92,6 +102,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func refreshHealthMetrics() async {
+        ensureDailyState()
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
 
@@ -104,6 +115,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func refreshDietSummary() async {
+        ensureDailyState()
         let now = Date()
         do {
             let today = DateFormatters.dateOnly.string(from: now)
@@ -111,14 +123,12 @@ final class DashboardViewModel: ObservableObject {
             todayIntakeKcal = summary.totals.caloriesKcal
             todayNutritionTotals = summary.totals
         } catch {
-            if todayIntakeKcal == nil {
-                todayIntakeKcal = nil
-            }
-            todayNutritionTotals = nil
+            // Keep last known values if request fails.
         }
     }
 
     private func refreshDashboardSummary() async {
+        ensureDailyState()
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
         do {
@@ -157,13 +167,19 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func refreshSteps(now: Date = Date(), startOfDay: Date? = nil) async {
+        ensureDailyState(now: now)
         let start = startOfDay ?? Calendar.current.startOfDay(for: now)
         if let steps = try? await healthKit.fetchDailySteps(start: start, end: now).first {
-            todaySteps = steps.count
+            let value = steps.count
+            if value >= todaySteps {
+                todaySteps = value
+                defaults.set(value, forKey: Constants.dashboardCacheStepsKey)
+            }
         }
     }
 
     private func refreshHeartRate(now: Date = Date(), startOfDay: Date? = nil) async {
+        ensureDailyState(now: now)
         let start = startOfDay ?? Calendar.current.startOfDay(for: now)
         if let hr = try? await healthKit.fetchHeartRateSamples(start: start, end: now).last {
             latestHeartRate = hr.bpm
@@ -171,6 +187,7 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func refreshSpO2(now: Date = Date(), startOfDay: Date? = nil) async {
+        ensureDailyState(now: now)
         let start = startOfDay ?? Calendar.current.startOfDay(for: now)
         if let spo2 = try? await healthKit.fetchSpO2Readings(start: start, end: now).last {
             latestSpO2 = spo2.percentage
@@ -179,6 +196,7 @@ final class DashboardViewModel: ObservableObject {
 
     private func refreshSleep(startOfDay: Date? = nil) async {
         let todayStart = startOfDay ?? Calendar.current.startOfDay(for: Date())
+        ensureDailyState(now: todayStart)
         let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: todayStart)!
         if let sessions = try? await healthKit.fetchSleepSessions(start: yesterday, end: todayStart) {
             let totalSeconds = sessions.reduce(0.0) { acc, s in
@@ -193,23 +211,41 @@ final class DashboardViewModel: ObservableObject {
     }
 
     private func refreshWorkouts(now: Date = Date(), startOfDay: Date? = nil) async {
+        ensureDailyState(now: now)
         let start = startOfDay ?? Calendar.current.startOfDay(for: now)
         if let workouts = try? await healthKit.fetchWorkouts(start: start, end: now) {
             let totalSeconds = workouts.reduce(0.0) { acc, w in
                 acc + w.durationSeconds
             }
-            todayWorkoutMinutes = totalSeconds / 60.0
-            let kcal = workouts.reduce(0.0) { acc, w in
+            let minutes = totalSeconds / 60.0
+            if let existing = todayWorkoutMinutes {
+                if minutes >= existing {
+                    todayWorkoutMinutes = minutes
+                }
+            } else {
+                todayWorkoutMinutes = minutes
+            }
+
+            let kcalSum = workouts.reduce(0.0) { acc, w in
                 acc + (w.totalEnergyKcal ?? 0.0)
             }
-            todayBurnedKcal = kcal
+            let kcal = kcalSum
+            if let existing = todayBurnedKcal {
+                if kcal >= existing {
+                    todayBurnedKcal = kcal
+                }
+            } else {
+                todayBurnedKcal = kcal
+            }
+
+            persistCachedMetrics()
         }
     }
 
     private func applySummary(_ summary: DashboardSummaryResponse) {
         if let today = summary.today {
             if let steps = today.steps {
-                if todaySteps == 0 || steps > 0 {
+                if todaySteps == 0 || steps >= todaySteps {
                     todaySteps = steps
                 }
             }
@@ -229,12 +265,20 @@ final class DashboardViewModel: ObservableObject {
                 }
             }
             if let intake = today.intakeKcal {
-                if todayIntakeKcal == nil || intake > 0 {
+                if let existing = todayIntakeKcal {
+                    if intake >= existing {
+                        todayIntakeKcal = intake
+                    }
+                } else {
                     todayIntakeKcal = intake
                 }
             }
             if let burned = today.burnedKcal {
-                if todayBurnedKcal == nil || burned > 0 {
+                if let existing = todayBurnedKcal {
+                    if burned >= existing {
+                        todayBurnedKcal = burned
+                    }
+                } else {
                     todayBurnedKcal = burned
                 }
             }
@@ -243,5 +287,103 @@ final class DashboardViewModel: ObservableObject {
         trend30d = summary.trend30d ?? []
         energyBalance = summary.balance
         targets = summary.targets
+    }
+
+    private func ensureDailyState(now: Date = Date()) {
+        let key = DateFormatters.dateOnly.string(from: now)
+        if currentDayKey.isEmpty {
+            currentDayKey = key
+        }
+        if currentDayKey == key {
+            return
+        }
+        currentDayKey = key
+        resetDailyMetrics()
+        persistCachedMetrics()
+    }
+
+    private func resetDailyMetrics() {
+        todaySteps = 0
+        latestHeartRate = nil
+        latestSpO2 = nil
+        lastSleepHours = nil
+        todayIntakeKcal = nil
+        todayBurnedKcal = nil
+        todayWorkoutMinutes = nil
+        todayNutritionTotals = nil
+        energyBalance = nil
+    }
+
+    private func restoreCachedMetrics() {
+        let todayKey = DateFormatters.dateOnly.string(from: Date())
+        currentDayKey = todayKey
+
+        guard defaults.string(forKey: Constants.dashboardCacheDateKey) == todayKey else {
+            defaults.set(todayKey, forKey: Constants.dashboardCacheDateKey)
+            return
+        }
+
+        if let steps = defaults.object(forKey: Constants.dashboardCacheStepsKey) as? Int {
+            todaySteps = max(0, steps)
+        }
+        if let hr = defaults.object(forKey: Constants.dashboardCacheHeartRateKey) as? Double {
+            latestHeartRate = hr
+        }
+        if let spo2 = defaults.object(forKey: Constants.dashboardCacheSpO2Key) as? Double {
+            latestSpO2 = spo2
+        }
+        if let sleep = defaults.object(forKey: Constants.dashboardCacheSleepHoursKey) as? Double {
+            lastSleepHours = sleep
+        }
+        if let intake = defaults.object(forKey: Constants.dashboardCacheIntakeKcalKey) as? Double {
+            todayIntakeKcal = intake
+        }
+        if let burned = defaults.object(forKey: Constants.dashboardCacheBurnedKcalKey) as? Double {
+            todayBurnedKcal = burned
+        }
+        if let minutes = defaults.object(forKey: Constants.dashboardCacheWorkoutMinutesKey) as? Double {
+            todayWorkoutMinutes = minutes
+        }
+    }
+
+    private func persistCachedMetrics() {
+        defaults.set(currentDayKey.isEmpty ? DateFormatters.dateOnly.string(from: Date()) : currentDayKey, forKey: Constants.dashboardCacheDateKey)
+        defaults.set(todaySteps, forKey: Constants.dashboardCacheStepsKey)
+
+        if let hr = latestHeartRate {
+            defaults.set(hr, forKey: Constants.dashboardCacheHeartRateKey)
+        } else {
+            defaults.removeObject(forKey: Constants.dashboardCacheHeartRateKey)
+        }
+
+        if let spo2 = latestSpO2 {
+            defaults.set(spo2, forKey: Constants.dashboardCacheSpO2Key)
+        } else {
+            defaults.removeObject(forKey: Constants.dashboardCacheSpO2Key)
+        }
+
+        if let sleep = lastSleepHours {
+            defaults.set(sleep, forKey: Constants.dashboardCacheSleepHoursKey)
+        } else {
+            defaults.removeObject(forKey: Constants.dashboardCacheSleepHoursKey)
+        }
+
+        if let intake = todayIntakeKcal {
+            defaults.set(intake, forKey: Constants.dashboardCacheIntakeKcalKey)
+        } else {
+            defaults.removeObject(forKey: Constants.dashboardCacheIntakeKcalKey)
+        }
+
+        if let burned = todayBurnedKcal {
+            defaults.set(burned, forKey: Constants.dashboardCacheBurnedKcalKey)
+        } else {
+            defaults.removeObject(forKey: Constants.dashboardCacheBurnedKcalKey)
+        }
+
+        if let minutes = todayWorkoutMinutes {
+            defaults.set(minutes, forKey: Constants.dashboardCacheWorkoutMinutesKey)
+        } else {
+            defaults.removeObject(forKey: Constants.dashboardCacheWorkoutMinutesKey)
+        }
     }
 }
