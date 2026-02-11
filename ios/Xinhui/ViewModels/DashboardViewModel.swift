@@ -56,12 +56,43 @@ final class DashboardViewModel: ObservableObject {
             forName: .dietEntrySaved,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
             Task {
+                self?.applyDietEntryNotification(notification)
                 await self?.refreshDietSummary()
                 self?.persistCachedMetrics()
             }
         }
+    }
+
+    private func applyDietEntryNotification(_ notification: Notification) {
+        guard let userInfo = notification.userInfo else { return }
+        guard let eatenAt = userInfo[DietNotificationKeys.eatenAt] as? String else { return }
+        let today = DateFormatters.dateOnlyString(from: Date())
+        let entryDay = String(eatenAt.prefix(10))
+        guard entryDay == today else { return }
+
+        guard let totals = userInfo[DietNotificationKeys.totals] as? [String: Any] else { return }
+        func doubleValue(_ key: String) -> Double {
+            if let v = totals[key] as? Double { return v }
+            if let v = totals[key] as? NSNumber { return v.doubleValue }
+            return 0
+        }
+
+        let calories = doubleValue("calories_kcal")
+        let protein = doubleValue("protein_g")
+        let carbs = doubleValue("carbs_g")
+        let fat = doubleValue("fat_g")
+
+        todayIntakeKcal = (todayIntakeKcal ?? 0) + calories
+
+        let existing = todayNutritionTotals ?? .zero
+        todayNutritionTotals = NutritionTotals(
+            caloriesKcal: max(0, existing.caloriesKcal + calories),
+            proteinG: max(0, existing.proteinG + protein),
+            carbsG: max(0, existing.carbsG + carbs),
+            fatG: max(0, existing.fatG + fat)
+        )
     }
 
     func refreshTodayData() async {

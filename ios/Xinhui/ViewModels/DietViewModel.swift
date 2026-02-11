@@ -41,7 +41,21 @@ final class DietViewModel: ObservableObject {
             let (summary, entries) = try await (summaryTask, entriesTask)
 
             last7Days = summary.days
-            recentEntries = entries.entries
+            recentEntries = entries.entries.sorted { lhs, rhs in
+                let leftDate = DateFormatters.iso8601Date(from: lhs.eatenAt)
+                let rightDate = DateFormatters.iso8601Date(from: rhs.eatenAt)
+                switch (leftDate, rightDate) {
+                case let (l?, r?):
+                    if l != r { return l > r }
+                case (nil, nil):
+                    break
+                case (_?, nil):
+                    return true
+                case (nil, _?):
+                    return false
+                }
+                return lhs.eatenAt > rhs.eatenAt
+            }
 
             let today = DateFormatters.dateOnlyString(from: now)
             todayTotals = summary.days.first(where: { $0.date == today })?.totals ?? .zero
@@ -97,9 +111,10 @@ final class DietViewModel: ObservableObject {
         notes: String?,
         planId: String?
     ) async throws -> DietCreateEntryResponse {
+        let eatenAtISO = DateFormatters.iso8601String(from: eatenAt)
         let payload = DietCreateEntryRequest(
             deviceId: DeviceIdentifier.current,
-            eatenAt: DateFormatters.iso8601String(from: eatenAt),
+            eatenAt: eatenAtISO,
             mealType: mealType,
             items: items,
             notes: notes?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -107,7 +122,20 @@ final class DietViewModel: ObservableObject {
             planId: planId
         )
         let response = try await api.createDietEntry(payload)
-        NotificationCenter.default.post(name: .dietEntrySaved, object: nil)
+        let totalsInfo: [String: Double] = [
+            "calories_kcal": response.totals.caloriesKcal,
+            "protein_g": response.totals.proteinG,
+            "carbs_g": response.totals.carbsG,
+            "fat_g": response.totals.fatG,
+        ]
+        NotificationCenter.default.post(
+            name: .dietEntrySaved,
+            object: nil,
+            userInfo: [
+                DietNotificationKeys.totals: totalsInfo,
+                DietNotificationKeys.eatenAt: eatenAtISO,
+            ]
+        )
         return response
     }
 }
