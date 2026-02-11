@@ -48,6 +48,82 @@ private struct EditableFoodItem: Identifiable {
     }
 }
 
+private struct DietItemsTable: View {
+    let items: [EditableFoodItem]
+
+    private let columns: [GridItem] = [
+        GridItem(.fixed(140), alignment: .leading),
+        GridItem(.fixed(90), alignment: .trailing),
+        GridItem(.fixed(100), alignment: .trailing),
+        GridItem(.fixed(90), alignment: .trailing),
+        GridItem(.fixed(90), alignment: .trailing),
+        GridItem(.fixed(90), alignment: .trailing),
+    ]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                headerCell("菜品")
+                headerCell("重量(g)")
+                headerCell("卡路里(kcal)")
+                headerCell("蛋白质(g)")
+                headerCell("碳水(g)")
+                headerCell("脂肪(g)")
+
+                ForEach(items) { item in
+                    Text(displayName(for: item))
+                        .lineLimit(1)
+
+                    Text(weightText(for: item))
+                        .lineLimit(1)
+
+                    Text(formatNumber(item.caloriesKcal))
+                        .lineLimit(1)
+
+                    Text(formatNumber(item.proteinG))
+                        .lineLimit(1)
+
+                    Text(formatNumber(item.carbsG))
+                        .lineLimit(1)
+
+                    Text(formatNumber(item.fatG))
+                        .lineLimit(1)
+                }
+            }
+            .font(.caption)
+            .padding(.vertical, 4)
+        }
+    }
+
+    private func headerCell(_ title: String) -> some View {
+        Text(title)
+            .font(.caption.weight(.semibold))
+            .foregroundColor(.secondary)
+    }
+
+    private func displayName(for item: EditableFoodItem) -> String {
+        let trimmed = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "食物" : trimmed
+    }
+
+    private func weightText(for item: EditableFoodItem) -> String {
+        if item.grams > 0 {
+            return formatNumber(item.grams)
+        }
+        let portion = item.portion.trimmingCharacters(in: .whitespacesAndNewlines)
+        return portion.isEmpty ? "—" : portion
+    }
+
+    private func formatNumber(_ value: Double) -> String {
+        guard value > 0 else { return "—" }
+        let rounded = value.rounded()
+        if abs(rounded - value) < 0.05 {
+            return String(format: "%.0f", value)
+        }
+        return String(format: "%.1f", value)
+    }
+}
+
 struct DietReviewView: View {
     let image: UIImage
     let planId: String?
@@ -152,6 +228,12 @@ struct DietReviewView: View {
                                 Label("添加食物", systemImage: "plus")
                             }
                         }
+                    }
+                }
+
+                if !editableItems.isEmpty {
+                    Section("识别明细") {
+                        DietItemsTable(items: editableItems)
                     }
                 }
 
