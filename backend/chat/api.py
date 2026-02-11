@@ -200,6 +200,13 @@ async def send_chat_message(
     full_prompt = f"Context (JSON):\n{json.dumps(ctx, ensure_ascii=False)}\n\nQuestion:\n{content}"
     wants_stream = "text/event-stream" in (request.headers.get("accept") or "")
 
+    def fallback_answer(detail: str) -> JSONResponse:
+        # For non-streaming callers (e.g. mobile apps), return a friendly 200 response
+        # instead of a hard 502 so UI won't briefly flash an error toast then disappear.
+        answer = f"AI 服务不可用：{detail}"
+        append_message(session_id=session_id, role="assistant", content=answer)
+        return JSONResponse(content=ChatMessageCreateResponse(status="ok", answer=answer).model_dump())
+
     # Ensure OpenCode session id.
     opencode_id = session.get("opencode_session_id")
     if not opencode_id:
@@ -211,7 +218,9 @@ async def send_chat_message(
             set_opencode_session_id(session_id=session_id, opencode_session_id=opencode_id)
 
     if not opencode_id:
-        raise HTTPException(status_code=502, detail="OpenCode session unavailable")
+        if wants_stream:
+            raise HTTPException(status_code=502, detail="OpenCode session unavailable")
+        return fallback_answer("OpenCode session unavailable")
 
     try:
         client, resp = await opencode_send_message(
@@ -221,7 +230,9 @@ async def send_chat_message(
             stream=wants_stream,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"OpenCode send failed: {exc}") from exc
+        if wants_stream:
+            raise HTTPException(status_code=502, detail=f"OpenCode send failed: {exc}") from exc
+        return fallback_answer(f"OpenCode send failed: {exc}")
 
     if resp.status_code >= 400:
         raw = b""
@@ -244,7 +255,9 @@ async def send_chat_message(
         detail = f"OpenCode error: {resp.status_code}"
         if err_msg:
             detail = f"{detail} - {err_msg}"
-        raise HTTPException(status_code=502, detail=detail)
+        if wants_stream:
+            raise HTTPException(status_code=502, detail=detail)
+        return fallback_answer(detail)
 
     content_type = resp.headers.get("content-type") or ""
     if wants_stream and "text/event-stream" in content_type:
@@ -312,7 +325,9 @@ async def send_chat_message(
         answer_text = raw.decode("utf-8", errors="ignore").strip()
 
     if not answer_text:
-        raise HTTPException(status_code=502, detail="OpenCode returned empty response")
+        if wants_stream:
+            raise HTTPException(status_code=502, detail="OpenCode returned empty response")
+        return fallback_answer("OpenCode returned empty response")
 
     append_message(session_id=session_id, role="assistant", content=answer_text)
     return JSONResponse(content=ChatMessageCreateResponse(status="ok", answer=answer_text).model_dump())

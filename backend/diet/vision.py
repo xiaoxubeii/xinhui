@@ -9,7 +9,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import httpx
@@ -117,6 +117,185 @@ def _extract_json(text: str) -> str:
     if start == -1 or end == -1 or end <= start:
         raise ValueError("Model output does not contain a JSON object")
     return cleaned[start : end + 1]
+
+
+_NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        m = _NUM_RE.search(s.replace(",", ""))
+        if not m:
+            return None
+        try:
+            return float(m.group(0))
+        except Exception:
+            return None
+    return None
+
+
+def _as_str_list(value: Any) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        s = value.strip()
+        return [s] if s else []
+    if isinstance(value, list):
+        out: List[str] = []
+        for x in value:
+            if x is None:
+                continue
+            if isinstance(x, str):
+                s = x.strip()
+            else:
+                s = str(x).strip()
+            if s:
+                out.append(s)
+        return out
+    if isinstance(value, dict):
+        for k in ("warnings", "warning", "message", "detail", "error", "text"):
+            v = value.get(k)
+            if isinstance(v, str) and v.strip():
+                return [v.strip()]
+    s = str(value).strip()
+    return [s] if s else []
+
+
+def _normalize_totals(totals: Any) -> Optional[Dict[str, float]]:
+    """Normalize totals keys to NutritionTotals schema if possible."""
+    if totals is None:
+        return None
+    if not isinstance(totals, dict):
+        return None
+
+    key_map = {
+        # Calories
+        "calories": "calories_kcal",
+        "calorie": "calories_kcal",
+        "kcal": "calories_kcal",
+        "energy": "calories_kcal",
+        "energy_kcal": "calories_kcal",
+        # Protein
+        "protein": "protein_g",
+        # Carbs
+        "carbohydrates": "carbs_g",
+        "carbs": "carbs_g",
+        "carb": "carbs_g",
+        # Fat
+        "fat": "fat_g",
+        "lipid": "fat_g",
+    }
+    allowed = {"calories_kcal", "protein_g", "carbs_g", "fat_g"}
+    out: Dict[str, float] = {}
+    for k, v in totals.items():
+        if not isinstance(k, str):
+            continue
+        kk = key_map.get(k, k)
+        if kk not in allowed:
+            continue
+        fv = _coerce_float(v)
+        if fv is None:
+            continue
+        out[kk] = max(0.0, fv)
+    return out or None
+
+
+def _first_present(obj: Dict[str, Any], keys: List[str]) -> Any:
+    for k in keys:
+        if k in obj:
+            return obj.get(k)
+    return None
+
+
+def _normalize_items(items: Any) -> List[Dict[str, Any]]:
+    """Normalize item schema to FoodItem as much as possible (best-effort)."""
+    if not isinstance(items, list):
+        return []
+    out: List[Dict[str, Any]] = []
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+
+        name = _first_present(raw, ["name", "food", "item", "dish", "title"])
+        if not isinstance(name, str):
+            name = str(name) if name is not None else ""
+        name = name.strip() or "unknown"
+
+        portion = _first_present(raw, ["portion", "serving", "amount", "size", "quantity"])
+        portion_str: Optional[str] = None
+        if isinstance(portion, str):
+            portion = portion.strip()
+            if portion:
+                portion_str = portion
+
+        grams = _coerce_float(_first_present(raw, ["grams", "gram", "weight_g", "weight", "g"]))
+
+        def pick_num(keys: List[str]) -> Optional[float]:
+            for k in keys:
+                if k in raw:
+                    val = _coerce_float(raw.get(k))
+                    if val is not None:
+                        return val
+            return None
+
+        calories = pick_num(["calories_kcal", "calories", "kcal", "energy_kcal", "energy"])
+        protein = pick_num(["protein_g", "protein"])
+        carbs = pick_num(["carbs_g", "carbs", "carbohydrates"])
+        fat = pick_num(["fat_g", "fat", "lipid"])
+
+        confidence = pick_num(["confidence", "conf", "score"])
+        if confidence is not None and confidence > 1 and confidence <= 100:
+            confidence = confidence / 100.0
+        if confidence is not None:
+            confidence = max(0.0, min(1.0, confidence))
+
+        item: Dict[str, Any] = {"name": name}
+        if portion_str is not None:
+            item["portion"] = portion_str
+        if grams is not None:
+            item["grams"] = max(0.0, grams)
+        if calories is not None:
+            item["calories_kcal"] = max(0.0, calories)
+        if protein is not None:
+            item["protein_g"] = max(0.0, protein)
+        if carbs is not None:
+            item["carbs_g"] = max(0.0, carbs)
+        if fat is not None:
+            item["fat_g"] = max(0.0, fat)
+        if confidence is not None:
+            item["confidence"] = confidence
+        out.append(item)
+    return out
+
+
+def _normalize_parsed(parsed: Dict[str, Any]) -> Dict[str, Any]:
+    items_raw = parsed.get("items")
+    if items_raw is None:
+        items_raw = parsed.get("foods") or parsed.get("food")
+    totals_raw = parsed.get("totals")
+    if totals_raw is None:
+        totals_raw = parsed.get("total")
+    warnings_raw = parsed.get("warnings")
+    if warnings_raw is None:
+        warnings_raw = parsed.get("warning")
+
+    items = _normalize_items(items_raw)
+    totals = _normalize_totals(totals_raw)
+    warnings = _as_str_list(warnings_raw)
+
+    return {
+        "items": items,
+        "totals": totals,
+        "warnings": warnings,
+        "extra": {k: v for k, v in parsed.items() if k not in {"items", "foods", "food", "totals", "total", "warnings", "warning"}},
+    }
 
 
 def _data_url(mime: str, image_bytes: bytes) -> str:
@@ -252,14 +431,23 @@ def recognize_food(
             "parse_error": str(exc),
         }
 
-    # Accept extra fields but validate known ones.
-    known = {
-        "items": parsed.get("items", []),
-        "totals": parsed.get("totals"),
-        "warnings": parsed.get("warnings", []),
-        "extra": {k: v for k, v in parsed.items() if k not in {"items", "totals", "warnings"}},
-    }
-    result = DietVisionRawResult.model_validate(known)
+    known = _normalize_parsed(parsed)
+    try:
+        result = DietVisionRawResult.model_validate(known)
+    except Exception as exc:
+        # If validation still fails, degrade gracefully.
+        fallback = {
+            "items": [],
+            "totals": None,
+            "warnings": [
+                "模型输出格式异常，请手动添加/修改食物条目后再保存。",
+            ],
+            "extra": {
+                "parse_error": str(exc),
+                "raw_text": (content or "")[:800],
+            },
+        }
+        result = DietVisionRawResult.model_validate(fallback)
 
     # Ensure totals exist; if model does not provide totals, compute from items.
     if result.totals is None:

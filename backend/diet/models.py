@@ -6,7 +6,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class NutritionTotals(BaseModel):
@@ -105,3 +105,28 @@ class DietVisionRawResult(BaseModel):
     totals: Optional[NutritionTotals] = None
     warnings: List[str] = []
     extra: Dict[str, object] = Field(default_factory=dict, description="Reserved for model-specific fields")
+
+    @field_validator("warnings", mode="before")
+    @classmethod
+    def _coerce_warnings(cls, value: object) -> List[str]:
+        """LLM outputs are often inconsistent (e.g., warnings: "..." vs ["..."]).
+
+        Keep the API resilient so the iOS client gets a usable response instead of a 500.
+        """
+        if value is None:
+            return []
+        if isinstance(value, str):
+            v = value.strip()
+            return [v] if v else []
+        if isinstance(value, list):
+            out: List[str] = []
+            for item in value:
+                if item is None:
+                    continue
+                s = str(item).strip()
+                if s:
+                    out.append(s)
+            return out
+        # Fallback: stringify unknown shapes (dict/number/etc.)
+        s = str(value).strip()
+        return [s] if s else []

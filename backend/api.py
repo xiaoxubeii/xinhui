@@ -1120,7 +1120,12 @@ async def agent_ask(request: AgentAskRequest):
     try:
         opencode_id = await opencode_create_session(title=request.page or "iOS Agent")
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"OpenCode session unavailable: {exc}") from exc
+        return AgentAskResponse(
+            answer=f"AI 服务不可用：OpenCode session unavailable: {exc}",
+            model="unavailable",
+            start=None,
+            end=None,
+        )
 
     try:
         client, resp = await opencode_send_message(
@@ -1130,7 +1135,12 @@ async def agent_ask(request: AgentAskRequest):
             stream=False,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"OpenCode send failed: {exc}") from exc
+        return AgentAskResponse(
+            answer=f"AI 服务不可用：OpenCode send failed: {exc}",
+            model="unavailable",
+            start=None,
+            end=None,
+        )
 
     try:
         payload = resp.json()
@@ -1142,11 +1152,16 @@ async def agent_ask(request: AgentAskRequest):
 
     if resp.status_code >= 400:
         err = _extract_opencode_error(payload) or f"OpenCode error: {resp.status_code}"
-        raise HTTPException(status_code=502, detail=err)
+        return AgentAskResponse(
+            answer=f"AI 服务不可用：{err}",
+            model="unavailable",
+            start=None,
+            end=None,
+        )
 
     answer = _extract_opencode_answer(payload).strip()
     if not answer:
-        answer = "暂无可用回答。"
+        answer = "AI 服务不可用：OpenCode returned empty response"
 
     return AgentAskResponse(answer=answer, model="opencode", start=None, end=None)
 
