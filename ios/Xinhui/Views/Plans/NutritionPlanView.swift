@@ -50,5 +50,6 @@ struct NutritionPlanView: View {
             }
         }
         .navigationTitle(plan?.title ?? "营养规划")
+        .toolbar(.hidden, for: .tabBar)
     }
 }

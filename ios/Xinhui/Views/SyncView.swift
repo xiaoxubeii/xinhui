@@ -56,6 +56,7 @@ struct SyncView: View {
             }
         }
         .navigationTitle("数据同步")
+        .toolbar(.hidden, for: .tabBar)
         .alert(
             "同步失败",
             isPresented: Binding(

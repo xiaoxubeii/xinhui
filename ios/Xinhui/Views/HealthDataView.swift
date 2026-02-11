@@ -41,6 +41,7 @@ struct HealthDataView: View {
             }
         }
         .navigationTitle("数据浏览")
+        .toolbar(.hidden, for: .tabBar)
         .onChange(of: selectedType) {
             Task { await loadData() }
         }

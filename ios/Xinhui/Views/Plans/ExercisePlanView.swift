@@ -51,5 +51,6 @@ struct ExercisePlanView: View {
             }
         }
         .navigationTitle(plan?.title ?? "运动处方")
+        .toolbar(.hidden, for: .tabBar)
     }
 }
