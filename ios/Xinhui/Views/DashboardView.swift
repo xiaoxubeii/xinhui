@@ -1,9 +1,7 @@
 import SwiftUI
-import Charts
 
 struct DashboardView: View {
     @ObservedObject var viewModel: DashboardViewModel
-    @State private var selectedTrend: TrendRange = .days7
 
     var body: some View {
         NavigationView {
@@ -100,13 +98,6 @@ struct DashboardView: View {
                             .padding(.horizontal)
                     }
 
-                    TrendSection(
-                        selectedTrend: $selectedTrend,
-                        trend7d: viewModel.trend7d,
-                        trend30d: viewModel.trend30d
-                    )
-                    .padding(.horizontal)
-
                     PlanCompletionSection(
                         exerciseItems: PlanProgressBuilder.exerciseItems(
                             plan: viewModel.exercisePlan,
@@ -139,18 +130,9 @@ struct DashboardView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("心慧智问")
-            .onAppear { viewModel.load() }
-            .onDisappear { viewModel.stopLiveUpdates() }
             .refreshable { await viewModel.refreshTodayData() }
         }
     }
-}
-
-private enum TrendRange: String, CaseIterable, Identifiable {
-    case days7 = "近7天"
-    case days30 = "近30天"
-
-    var id: String { rawValue }
 }
 
 private struct BalanceCardData {
@@ -269,166 +251,6 @@ private struct TargetProgressRow: View {
                     .foregroundColor(.secondary)
             }
             ProgressView(value: progress)
-        }
-    }
-}
-
-private struct TrendSection: View {
-    @Binding var selectedTrend: TrendRange
-    let trend7d: [DashboardTrendPoint]
-    let trend30d: [DashboardTrendPoint]
-
-    private var selectedData: [DashboardTrendPoint] {
-        switch selectedTrend {
-        case .days7: return trend7d
-        case .days30: return trend30d
-        }
-    }
-
-    private var maxSteps: Double {
-        Double(selectedData.compactMap { $0.steps }.max() ?? 0)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("趋势")
-                    .font(.headline)
-                Spacer()
-                Picker("趋势范围", selection: $selectedTrend) {
-                    ForEach(TrendRange.allCases) { range in
-                        Text(range.rawValue).tag(range)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-            if selectedData.isEmpty {
-                Text("暂无趋势数据")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                VStack(spacing: 8) {
-                    TrendChart(data: selectedData)
-                        .frame(height: 160)
-                    ForEach(selectedData) { point in
-                        TrendRow(point: point, maxSteps: maxSteps)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.systemBackground))
-        .cornerRadius(Constants.cornerRadius)
-        .cardBorder()
-        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
-    }
-}
-
-private struct TrendChart: View {
-    let data: [DashboardTrendPoint]
-
-    private var maxSteps: Double {
-        Double(data.compactMap { $0.steps }.max() ?? 0)
-    }
-
-    private func date(for point: DashboardTrendPoint) -> Date? {
-        DateFormatters.dateOnly.date(from: point.date)
-    }
-
-    var body: some View {
-        Chart {
-            ForEach(data) { point in
-                if let date = date(for: point), let steps = point.steps {
-                    AreaMark(
-                        x: .value("日期", date),
-                        y: .value("步数", steps)
-                    )
-                    .foregroundStyle(.green.opacity(0.15))
-
-                    LineMark(
-                        x: .value("日期", date),
-                        y: .value("步数", steps)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(.green)
-                }
-            }
-        }
-        .chartYScale(domain: 0...max(1.0, maxSteps))
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                if let date = value.as(Date.self) {
-                    AxisValueLabel(DateFormatters.displayDate.string(from: date))
-                }
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 3))
-        }
-    }
-}
-
-private struct TrendRow: View {
-    let point: DashboardTrendPoint
-    let maxSteps: Double
-
-    private var dateText: String {
-        if let date = DateFormatters.dateOnlyDate(from: point.date) {
-            return DateFormatters.displayDate.string(from: date)
-        }
-        return point.date
-    }
-
-    private var stepValue: Double {
-        Double(point.steps ?? 0)
-    }
-
-    private var stepRatio: Double {
-        guard maxSteps > 0 else { return 0 }
-        return stepValue / maxSteps
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(dateText)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Text("\(point.steps ?? 0) 步")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            GeometryReader { proxy in
-                Capsule()
-                    .fill(Color.green.opacity(0.2))
-                    .frame(height: 6)
-                    .overlay(
-                        Capsule()
-                            .fill(Color.green)
-                            .frame(width: proxy.size.width * stepRatio, height: 6),
-                        alignment: .leading
-                    )
-            }
-            .frame(height: 6)
-            HStack(spacing: 12) {
-                if let sleep = point.sleepHours {
-                    Text(String(format: "睡眠 %.1f 小时", sleep))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                if let intake = point.intakeKcal {
-                    Text(String(format: "摄入 %.0f kcal", intake))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                if let burned = point.burnedKcal {
-                    Text(String(format: "消耗 %.0f kcal", burned))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
         }
     }
 }

@@ -5,10 +5,12 @@ struct PlanCard: View {
     let subtitle: String
     let iconName: String
     let color: Color
+    var showsChevron: Bool = true
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: iconName)
+                .font(.title3)
                 .foregroundColor(color)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -19,6 +21,11 @@ struct PlanCard: View {
                     .lineLimit(2)
             }
             Spacer()
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
         .background(Color(.systemBackground))

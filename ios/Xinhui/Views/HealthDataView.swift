@@ -8,45 +8,43 @@ struct HealthDataView: View {
     private let healthKit = HealthKitManager()
 
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // 类型选择器
-                Picker("数据类型", selection: $selectedType) {
-                    ForEach(HealthDataType.allCases) { type in
-                        Label(type.rawValue, systemImage: type.iconName).tag(type)
-                    }
+        VStack(spacing: 0) {
+            // 类型选择器
+            Picker("数据类型", selection: $selectedType) {
+                ForEach(HealthDataType.allCases) { type in
+                    Label(type.rawValue, systemImage: type.iconName).tag(type)
                 }
-                .pickerStyle(.segmented)
-                .padding()
+            }
+            .pickerStyle(.segmented)
+            .padding()
 
-                if isLoading {
-                    Spacer()
-                    ProgressView("正在加载...")
-                    Spacer()
-                } else if items.isEmpty {
-                    Spacer()
-                    VStack(spacing: 8) {
-                        Image(systemName: "tray")
-                            .font(.largeTitle)
-                            .foregroundColor(.secondary)
-                        Text("暂无数据")
-                            .foregroundColor(.secondary)
-                    }
-                    Spacer()
-                } else {
-                    List(items, id: \.self) { item in
-                        Text(item)
-                            .font(.system(.body, design: .monospaced))
-                    }
-                    .listStyle(.plain)
+            if isLoading {
+                Spacer()
+                ProgressView("正在加载...")
+                Spacer()
+            } else if items.isEmpty {
+                Spacer()
+                VStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .font(.largeTitle)
+                        .foregroundColor(.secondary)
+                    Text("暂无数据")
+                        .foregroundColor(.secondary)
                 }
+                Spacer()
+            } else {
+                List(items, id: \.self) { item in
+                    Text(item)
+                        .font(.system(.body, design: .monospaced))
+                }
+                .listStyle(.plain)
             }
-            .navigationTitle("数据浏览")
-            .onChange(of: selectedType) { _ in
-                Task { await loadData() }
-            }
-            .task { await loadData() }
         }
+        .navigationTitle("数据浏览")
+        .onChange(of: selectedType) {
+            Task { await loadData() }
+        }
+        .task { await loadData() }
     }
 
     private func loadData() async {

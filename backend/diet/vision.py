@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ast
 import base64
 import json
 import os
@@ -28,10 +29,87 @@ class VisionSettings:
     max_tokens: int
 
 
+def _remove_trailing_commas(text: str) -> str:
+    """Remove trailing commas in JSON/JSONC while preserving string literals."""
+    out: list[str] = []
+    in_str = False
+    escaped = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == "\"":
+                in_str = False
+            i += 1
+            continue
+
+        if ch == "\"":
+            in_str = True
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == ",":
+            j = i + 1
+            while j < len(text) and text[j] in " \t\r\n":
+                j += 1
+            if j < len(text) and text[j] in "}]":
+                i += 1
+                continue
+
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _strip_jsonc(text: str) -> str:
-    text = re.sub(r"//.*?$", "", text, flags=re.MULTILINE)
-    text = re.sub(r"/\\*.*?\\*/", "", text, flags=re.DOTALL)
-    return text
+    """Strip JSONC comments without breaking URLs/strings, then remove trailing commas."""
+    out: list[str] = []
+    in_str = False
+    escaped = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == "\"":
+                in_str = False
+            i += 1
+            continue
+
+        if ch == "\"":
+            in_str = True
+            out.append(ch)
+            i += 1
+            continue
+
+        if ch == "/" and i + 1 < len(text):
+            nxt = text[i + 1]
+            if nxt == "/":
+                i += 2
+                while i < len(text) and text[i] not in "\n\r":
+                    i += 1
+                continue
+            if nxt == "*":
+                i += 2
+                while i + 1 < len(text) and not (text[i] == "*" and text[i + 1] == "/"):
+                    i += 1
+                i += 2 if i + 1 < len(text) else 1
+                continue
+
+        out.append(ch)
+        i += 1
+
+    return _remove_trailing_commas("".join(out))
 
 
 def _load_opencode_config() -> Dict[str, Any] | None:
@@ -117,6 +195,165 @@ def _extract_json(text: str) -> str:
     if start == -1 or end == -1 or end <= start:
         raise ValueError("Model output does not contain a JSON object")
     return cleaned[start : end + 1]
+
+
+def _iter_json_object_candidates(text: str) -> list[str]:
+    """Extract balanced {...} candidates from arbitrary text.
+
+    Models sometimes wrap JSON with extra prose or include multiple JSON objects.
+    We scan for balanced braces while respecting string literals.
+    """
+    cleaned = text.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+
+    candidates: list[str] = []
+    in_str = False
+    escaped = False
+    depth = 0
+    start_idx: int | None = None
+
+    for i, ch in enumerate(cleaned):
+        if in_str:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == "\"":
+                in_str = False
+            continue
+
+        if ch == "\"":
+            in_str = True
+            continue
+
+        if ch == "{":
+            if depth == 0:
+                start_idx = i
+            depth += 1
+            continue
+
+        if ch == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start_idx is not None:
+                    candidates.append(cleaned[start_idx : i + 1])
+                    start_idx = None
+            continue
+
+    return candidates
+
+
+def _sanitize_json_like(text: str) -> str:
+    # Common LLM output issues: trailing commas, non-finite floats.
+    cleaned = _remove_trailing_commas(text)
+    cleaned = re.sub(r"\bNaN\b", "null", cleaned)
+    cleaned = re.sub(r"\b-?Infinity\b", "null", cleaned)
+    return cleaned
+
+
+def _parse_model_output_json(content: str) -> Dict[str, Any]:
+    last_error: Exception | None = None
+
+    for candidate in _iter_json_object_candidates(content):
+        for attempt in (candidate, _sanitize_json_like(candidate)):
+            try:
+                parsed = json.loads(attempt)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception as exc:
+                last_error = exc
+
+        # As a fallback, try parsing Python-literal-ish dicts (single quotes/None/True/False).
+        try:
+            py = candidate
+            py = re.sub(r"\bnull\b", "None", py)
+            py = re.sub(r"\btrue\b", "True", py, flags=re.IGNORECASE)
+            py = re.sub(r"\bfalse\b", "False", py, flags=re.IGNORECASE)
+            parsed = ast.literal_eval(py)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception as exc:
+            last_error = exc
+
+    # Keep previous behavior for minimal changes in error messaging.
+    try:
+        return json.loads(_sanitize_json_like(_extract_json(content)))
+    except Exception as exc:
+        last_error = exc
+
+    raise ValueError(f"Failed to parse model JSON: {last_error}") from last_error
+
+
+def _concat_text_parts(parts: object) -> str:
+    if not isinstance(parts, list):
+        return ""
+    out: list[str] = []
+    for part in parts:
+        if not isinstance(part, dict):
+            continue
+        ptype = part.get("type")
+        if ptype and ptype not in {"text", "output_text"}:
+            continue
+        for key in ("text", "content", "value"):
+            val = part.get(key)
+            if isinstance(val, str) and val:
+                out.append(val)
+                break
+    return "".join(out)
+
+
+def _extract_text_from_opencode_response(data: object) -> str:
+    """Support OpenCode 'parts' responses and OpenAI-compatible 'choices' responses."""
+    if not isinstance(data, dict):
+        return ""
+
+    parts = data.get("parts")
+    content = _concat_text_parts(parts)
+    if content:
+        return content
+
+    info = data.get("info")
+    if isinstance(info, dict):
+        content = _concat_text_parts(info.get("parts"))
+        if content:
+            return content
+        maybe = info.get("content")
+        if isinstance(maybe, str) and maybe:
+            return maybe
+
+    message = data.get("message")
+    if isinstance(message, dict):
+        content = _concat_text_parts(message.get("parts"))
+        if content:
+            return content
+        maybe = message.get("content")
+        if isinstance(maybe, str) and maybe:
+            return maybe
+
+    choices = data.get("choices")
+    if isinstance(choices, list):
+        out: list[str] = []
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            msg = choice.get("message")
+            if isinstance(msg, dict):
+                maybe = msg.get("content")
+                if isinstance(maybe, str) and maybe:
+                    out.append(maybe)
+            delta = choice.get("delta")
+            if isinstance(delta, dict):
+                maybe = delta.get("content")
+                if isinstance(maybe, str) and maybe:
+                    out.append(maybe)
+            maybe_text = choice.get("text")
+            if isinstance(maybe_text, str) and maybe_text:
+                out.append(maybe_text)
+        if out:
+            return "".join(out)
+
+    return ""
 
 
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
@@ -320,7 +557,10 @@ def recognize_food(
     locale_str = locale or "zh-CN"
 
     system_prompt = (
-        "You are a nutrition assistant. Return STRICT JSON only (no markdown). "
+        "You are a nutrition assistant. Return STRICT JSON only. "
+        "Do NOT wrap in markdown or code fences. "
+        "Output MUST start with '{' and end with '}'. "
+        "Use double quotes for all keys/strings and no trailing commas. "
         "Estimate food type and nutrition for the portion shown. "
         "If unsure, use low confidence and add warnings; do NOT fabricate precise numbers."
     )
@@ -330,6 +570,7 @@ def recognize_food(
         "1) Identify all foods in the photo.\n"
         "2) Estimate portion and grams.\n"
         "3) Estimate nutrition for the consumed portion: calories_kcal, protein_g, carbs_g, fat_g.\n"
+        "4) If you can't identify any food, return items: [] and add a warning.\n"
         "\n"
         "Output JSON schema (STRICT):\n"
         "{\n"
@@ -396,28 +637,10 @@ def recognize_food(
     if data is None:
         raise ValueError(f"OpenCode vision call failed: {last_error}")
 
-    parts = data.get("parts") if isinstance(data, dict) else None
-    content = ""
-    if isinstance(parts, list):
-        content = "".join(
-            part.get("text", "")
-            for part in parts
-            if isinstance(part, dict) and part.get("type") == "text"
-        )
-    if not content and isinstance(data, dict):
-        info = data.get("info")
-        if isinstance(info, dict):
-            msg_parts = info.get("parts")
-            if isinstance(msg_parts, list):
-                content = "".join(
-                    part.get("text", "")
-                    for part in msg_parts
-                    if isinstance(part, dict) and part.get("type") == "text"
-                )
+    content = _extract_text_from_opencode_response(data)
     parsed: Dict[str, Any]
     try:
-        json_str = _extract_json(content or "")
-        parsed = json.loads(json_str)
+        parsed = _parse_model_output_json(content or "")
     except Exception as exc:
         # Don't fail the whole request when the model returns non-JSON (or empty) output.
         # The iOS review screen can still let users manually fill in food items.

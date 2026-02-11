@@ -19,8 +19,8 @@ struct DietView: View {
         )
 
         NavigationView {
-            List {
-                Section {
+            ScrollView {
+                VStack(spacing: 16) {
                     NavigationLink(destination: NutritionPlanView(plan: viewModel.nutritionPlan)) {
                         PlanCard(
                             title: "营养规划",
@@ -28,73 +28,97 @@ struct DietView: View {
                             iconName: "leaf.fill",
                             color: .green
                         )
-                        .padding(.horizontal)
-                        .padding(.vertical, 4)
                     }
                     .buttonStyle(.plain)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
-                }
 
-                Section("今日完成情况") {
-                    if progressItems.isEmpty {
-                        Text(viewModel.nutritionPlan == nil ? "暂无规划" : "暂无目标")
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(progressItems) { item in
-                            PlanProgressRow(item: item)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("今日完成情况")
+                            .font(.headline)
+                        if progressItems.isEmpty {
+                            Text(viewModel.nutritionPlan == nil ? "暂无规划" : "暂无目标")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(progressItems) { item in
+                                PlanProgressRow(item: item)
+                            }
                         }
                     }
-                }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(Constants.cornerRadius)
+                    .cardBorder()
+                    .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
 
-                Section {
-                    HStack(spacing: 12) {
-                        MetricCard(
-                            title: "今日摄入",
-                            value: String(format: "%.0f", viewModel.todayTotals.caloriesKcal),
-                            unit: "kcal",
-                            iconName: "fork.knife",
-                            color: .orange
-                        )
-                    }
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-                    .padding(.vertical, 8)
-                }
+                    MetricCard(
+                        title: "今日摄入",
+                        value: String(format: "%.0f", viewModel.todayTotals.caloriesKcal),
+                        unit: "kcal",
+                        iconName: "fork.knife",
+                        color: .orange
+                    )
 
-                Section {
                     Button {
                         showCamera = true
                     } label: {
-                        HStack {
-                            Spacer()
+                        HStack(spacing: 12) {
                             Image(systemName: "camera.fill")
+                                .foregroundColor(.blue)
                             Text("拍照记录")
-                                .fontWeight(.semibold)
+                                .font(.headline)
                             Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
                         }
+                        .padding()
+                        .background(Color(.systemBackground))
+                        .cornerRadius(Constants.cornerRadius)
+                        .cardBorder()
+                        .shadow(color: .black.opacity(0.05), radius: 4, y: 2)
                     }
-                }
+                    .buttonStyle(.plain)
 
-                Section("最近记录") {
-                    if viewModel.isLoading && viewModel.recentEntries.isEmpty {
-                        HStack {
-                            ProgressView()
-                            Text("正在加载…").foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 8) {
+                            Text("最近记录")
+                                .font(.headline)
+                            Spacer()
+                            if viewModel.isLoading && viewModel.recentEntries.isEmpty {
+                                ProgressView()
+                                    .scaleEffect(0.9)
+                            }
                         }
-                    } else if viewModel.recentEntries.isEmpty {
-                        Text("暂无记录")
-                            .foregroundColor(.secondary)
-                    } else {
-                        ForEach(viewModel.recentEntries, id: \.entryId) { entry in
-                            DietEntryRow(entry: entry)
+                        if viewModel.isLoading && viewModel.recentEntries.isEmpty {
+                            Text("正在加载…")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else if viewModel.recentEntries.isEmpty {
+                            Text("暂无记录")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        } else {
+                            ForEach(Array(viewModel.recentEntries.prefix(12).enumerated()), id: \.element.entryId) { idx, entry in
+                                DietEntryRow(entry: entry)
+                                if idx < min(viewModel.recentEntries.count, 12) - 1 {
+                                    Divider()
+                                }
+                            }
                         }
                     }
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(.systemBackground))
+                    .cornerRadius(Constants.cornerRadius)
+                    .cardBorder()
+                    .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
                 }
+                .padding(.horizontal)
+                .padding(.vertical)
             }
-            .listStyle(.insetGrouped)
-            .navigationTitle("营养管理")
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("营养")
             .onAppear { viewModel.load() }
             .refreshable { await viewModel.refresh() }
             .alert(
@@ -129,7 +153,7 @@ struct DietView: View {
                     Task { await viewModel.refresh() }
                 }
             }
-            .onChange(of: capturedPhoto?.id) { _ in
+            .onChange(of: capturedPhoto?.id) {
                 guard let photo = capturedPhoto else { return }
                 capturedPhoto = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {

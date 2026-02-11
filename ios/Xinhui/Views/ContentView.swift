@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @StateObject private var dashboardViewModel = DashboardViewModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         TabView {
@@ -20,7 +21,7 @@ struct ContentView: View {
                     Label("运动", systemImage: "figure.run")
                 }
 
-            HealthDataView()
+            DataHubView(viewModel: dashboardViewModel)
                 .tabItem {
                     Label("数据", systemImage: "list.bullet.rectangle")
                 }
@@ -29,6 +30,19 @@ struct ContentView: View {
                 .tabItem {
                     Label("设置", systemImage: "gearshape")
                 }
+        }
+        .task { dashboardViewModel.load() }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                dashboardViewModel.startLiveUpdates()
+            case .background:
+                dashboardViewModel.stopLiveUpdates()
+            case .inactive:
+                break
+            @unknown default:
+                break
+            }
         }
     }
 }

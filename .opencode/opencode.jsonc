@@ -48,6 +48,7 @@
   },
   "model": "opencode/minimax-m2.1-free",
   "small_model": "opencode/minimax-m2.1-free",
+  "diet_vision_model": "qwen/qwen3-vl-plus",
   "mcp": {
     "xinhui-backend": {
       "type": "remote",

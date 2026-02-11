@@ -57,6 +57,7 @@ struct DietReviewView: View {
     @StateObject private var viewModel = DietViewModel()
 
     @State private var isRecognizing = true
+    @State private var modelName: String = ""
     @State private var warnings: [String] = []
     @State private var editableItems: [EditableFoodItem] = []
     @State private var mealType: MealType = .snack
@@ -111,54 +112,74 @@ struct DietReviewView: View {
                             Text("正在识别…")
                                 .foregroundColor(.secondary)
                         }
-                    } else if editableItems.isEmpty {
-                        Text("未识别到明确食物，请手动添加。")
-                            .foregroundColor(.secondary)
-                    }
-
-                    ForEach($editableItems) { $item in
-                        VStack(alignment: .leading, spacing: 8) {
-                            TextField("食物名称", text: $item.name)
-                            TextField("份量描述（可选）", text: $item.portion)
-
-                            HStack {
-                                TextField("克重", value: $item.grams, format: .number)
-                                    .keyboardType(.decimalPad)
-                                Text("g").foregroundColor(.secondary)
-                                Spacer()
-                                TextField("热量", value: $item.caloriesKcal, format: .number)
-                                    .keyboardType(.decimalPad)
-                                Text("kcal").foregroundColor(.secondary)
+                    } else {
+                        if editableItems.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("未识别到明确食物，请手动添加。")
+                                    .foregroundColor(.secondary)
                             }
+                        }
 
-                            HStack {
-                                TextField("蛋白", value: $item.proteinG, format: .number)
-                                    .keyboardType(.decimalPad)
-                                Text("g").foregroundColor(.secondary)
-                                Spacer()
-                                TextField("碳水", value: $item.carbsG, format: .number)
-                                    .keyboardType(.decimalPad)
-                                Text("g").foregroundColor(.secondary)
-                                Spacer()
-                                TextField("脂肪", value: $item.fatG, format: .number)
-                                    .keyboardType(.decimalPad)
-                                Text("g").foregroundColor(.secondary)
-                            }
+                        if !modelName.isEmpty {
+                            Text("模型：\(modelName)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
 
-                            Button(role: .destructive) {
-                                if let idx = editableItems.firstIndex(where: { $0.id == item.id }) {
-                                    editableItems.remove(at: idx)
+                        if !warnings.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                ForEach(warnings, id: \.self) { w in
+                                    Text(w)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
+                            }
+                        }
+
+                        HStack {
+                            Button {
+                                Task { await recognize() }
                             } label: {
-                                Label("删除此食物", systemImage: "trash")
+                                Label("重新识别", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(isRecognizing)
+
+                            Spacer()
+
+                            Button {
+                                editableItems.append(EditableFoodItem())
+                            } label: {
+                                Label("添加食物", systemImage: "plus")
                             }
                         }
                     }
+                }
 
-                    Button {
-                        editableItems.append(EditableFoodItem())
-                    } label: {
-                        Label("添加食物", systemImage: "plus")
+                ForEach($editableItems) { $item in
+                    Section(item.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "食物" : item.name) {
+                        TextField("食物名称", text: $item.name)
+                        TextField("份量描述（可选）", text: $item.portion)
+                        TextField("克重 (g)", value: $item.grams, format: .number)
+                            .keyboardType(.decimalPad)
+                        TextField("热量 (kcal)", value: $item.caloriesKcal, format: .number)
+                            .keyboardType(.decimalPad)
+                        TextField("蛋白 (g)", value: $item.proteinG, format: .number)
+                            .keyboardType(.decimalPad)
+                        TextField("碳水 (g)", value: $item.carbsG, format: .number)
+                            .keyboardType(.decimalPad)
+                        TextField("脂肪 (g)", value: $item.fatG, format: .number)
+                            .keyboardType(.decimalPad)
+                        if let confidence = item.confidence {
+                            LabeledContent("置信度", value: String(format: "%.0f%%", confidence * 100.0))
+                        }
+
+                        Button(role: .destructive) {
+                            if let idx = editableItems.firstIndex(where: { $0.id == item.id }) {
+                                editableItems.remove(at: idx)
+                            }
+                        } label: {
+                            Label("删除此食物", systemImage: "trash")
+                        }
                     }
                 }
 
@@ -167,14 +188,6 @@ struct DietReviewView: View {
                     LabeledContent("蛋白", value: String(format: "%.0f g", computedTotals.proteinG))
                     LabeledContent("碳水", value: String(format: "%.0f g", computedTotals.carbsG))
                     LabeledContent("脂肪", value: String(format: "%.0f g", computedTotals.fatG))
-                }
-
-                if !warnings.isEmpty {
-                    Section("提示") {
-                        ForEach(warnings, id: \.self) { w in
-                            Text(w).foregroundColor(.secondary)
-                        }
-                    }
                 }
 
                 Section("备注") {
@@ -220,11 +233,13 @@ struct DietReviewView: View {
         isRecognizing = true
         defer { isRecognizing = false }
         currentError = nil
+        modelName = ""
         warnings = []
         editableItems = []
 
         do {
             let result = try await viewModel.recognize(image: image)
+            modelName = result.model
             warnings = result.warnings
             editableItems = result.items.map { EditableFoodItem(from: $0) }
         } catch is CancellationError {
