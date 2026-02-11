@@ -114,17 +114,6 @@ struct DashboardView: View {
                     )
                     .padding(.horizontal)
 
-                    // 设备 ID
-                    HStack {
-                        Text("设备 ID")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(viewModel.deviceId.prefix(8) + "...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.horizontal)
                 }
                 .padding(.vertical)
             }

@@ -239,6 +239,25 @@ private struct TrendChartCard: View {
         DateFormatters.dateOnlyDate(from: point.date)
     }
 
+    private func axisStride(for count: Int) -> Int {
+        if count <= 7 { return 1 }
+        if count <= 14 { return 2 }
+        if count <= 21 { return 3 }
+        return 4
+    }
+
+    private var axisLabelDates: [Date] {
+        let dates = data.compactMap { date(for: $0) }
+        guard !dates.isEmpty else { return [] }
+        let stride = axisStride(for: dates.count)
+        return dates.enumerated().compactMap { idx, date in
+            if idx == 0 || idx == dates.count - 1 || idx % stride == 0 {
+                return date
+            }
+            return nil
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
@@ -287,7 +306,7 @@ private struct TrendChartCard: View {
                 .frame(height: 180)
                 .chartYScale(domain: 0...max(1.0, maxValue * 1.1))
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                    AxisMarks(values: axisLabelDates) { value in
                         if let date = value.as(Date.self) {
                             AxisValueLabel(DateFormatters.displayDate.string(from: date))
                         }

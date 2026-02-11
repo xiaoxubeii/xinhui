@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 import PhotosUI
 import UniformTypeIdentifiers
 import UIKit
@@ -29,6 +30,7 @@ struct AgentChatView: View {
                 .background(Color(.systemBackground))
         }
         .background(Color(.systemGroupedBackground))
+        .toolbar(.hidden, for: .tabBar)
         .navigationTitle("智问")
         .navigationBarTitleDisplayMode(.inline)
         .task { await viewModel.loadContextIfNeeded() }
@@ -119,7 +121,7 @@ struct AgentChatView: View {
                             .id(message.id)
                     }
                     if viewModel.isSending {
-                        MessageBubble(message: AgentMessage(role: .assistant, text: "正在思考…"))
+                        ThinkingBubble()
                     }
                 }
                 .padding(.horizontal)
@@ -225,15 +227,27 @@ private struct MessageBubble: View {
     let message: AgentMessage
 
     private var isUser: Bool { message.role == .user }
+    private var assistantMarkdown: AttributedString? {
+        try? AttributedString(markdown: message.text)
+    }
 
     var body: some View {
         HStack {
             if isUser { Spacer(minLength: 40) }
 
             VStack(alignment: .leading, spacing: 8) {
-                Text(message.text)
-                    .font(.body)
-                    .foregroundColor(isUser ? .white : .primary)
+                if isUser {
+                    Text(message.text)
+                        .font(.body)
+                        .foregroundColor(.white)
+                } else if let markdown = assistantMarkdown {
+                    Text(markdown)
+                        .font(.body)
+                } else {
+                    Text(message.text)
+                        .font(.body)
+                        .foregroundColor(.primary)
+                }
 
                 if !message.attachments.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
@@ -256,6 +270,38 @@ private struct MessageBubble: View {
             if !isUser { Spacer(minLength: 40) }
         }
         .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+    }
+}
+
+private struct ThinkingBubble: View {
+    @State private var isAnimating = false
+
+    var body: some View {
+        HStack {
+            HStack(spacing: 6) {
+                ForEach(0..<3) { idx in
+                    Circle()
+                        .fill(Color.secondary)
+                        .frame(width: 6, height: 6)
+                        .scaleEffect(isAnimating ? 1.0 : 0.4)
+                        .animation(
+                            .easeInOut(duration: 0.6)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(idx) * 0.2),
+                            value: isAnimating
+                        )
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color(.secondarySystemBackground))
+            .cornerRadius(Constants.cornerRadius)
+            .frame(maxWidth: 120, alignment: .leading)
+
+            Spacer(minLength: 40)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { isAnimating = true }
     }
 }
 
