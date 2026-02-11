@@ -1,0 +1,51 @@
+{
+  "items": [
+    {
+      "name": "荞麦饭",
+      "portion": "1碗",
+      "grams": 180,
+      "calories_kcal": 190,
+      "protein_g": 6,
+      "carbs_g": 38,
+      "fat_g": 2.5,
+      "confidence": 80
+    },
+    {
+      "name": "肉片炒水瓜",
+      "portion": "1碗",
+      "grams": 160,
+      "calories_kcal": 165,
+      "protein_g": 9,
+      "carbs_g": 7,
+      "fat_g": 6,
+      "confidence": 80
+    },
+    {
+      "name": "绿色蔬菜汤",
+      "portion": "1碗",
+      "grams": 120,
+      "calories_kcal": 25,
+      "protein_g": 1.5,
+      "carbs_g": 2.5,
+      "fat_g": 0.3,
+      "confidence": 80
+    },
+    {
+      "name": "豆酱炒青骨通菜",
+      "portion": "1碗",
+      "grams": 150,
+      "calories_kcal": 135,
+      "protein_g": 7,
+      "carbs_g": 5,
+      "fat_g": 4,
+      "confidence": 80
+    }
+  ],
+  "totals": {
+    "calories_kcal": 615,
+    "protein_g": 23.5,
+    "carbs_g": 52.5,
+    "fat_g": 13.2
+  },
+  "warnings": ["这是估算值，实际营养可能因烹饪方法和份量而异", "荞麦饭属于粗粮，膳食纤维含量较高", "蔬菜汤热量较低，主要提供维生素"]
+}

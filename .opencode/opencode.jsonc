@@ -17,17 +17,26 @@
       }
     },
     "zhipu": {
-      "name": "Zhipu AI Coding Plan",
+      "name": "Zhipu",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "baseURL": "https://open.bigmodel.cn/api/coding/paas/v4",
         "apiKey": "{env:ZHIPU_API_KEY}",
         "timeout": 30000
       },
+    },
+    "qwen": {
+      "name": "Qwen",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "apiKey": "{env:QWEN_API_KEY}",
+        "timeout": 30000
+      },
       "models": {
-        "glm-4.6v-flash": {
-          "name": "GLM-4.6V-Flash",
-          "id": "glm-4.6v-flash",
+        "qwen3-vl-plus": {
+          "name": "Qwen3-VL Plus",
+          "id": "qwen3-vl-plus",
           "attachment": true,
           "modalities": {
             "input": ["text", "image"],
@@ -47,8 +56,4 @@
     }
   },
   "default_agent": "clinical",
-  "agent": {
-    // 禁用内置 cpet，使用自定义 agents
-    "cpet": { "disable": true }
-  }
 }
