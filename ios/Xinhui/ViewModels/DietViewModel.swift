@@ -106,6 +106,8 @@ final class DietViewModel: ObservableObject {
             source: "vision",
             planId: planId
         )
-        return try await api.createDietEntry(payload)
+        let response = try await api.createDietEntry(payload)
+        NotificationCenter.default.post(name: .dietEntrySaved, object: nil)
+        return response
     }
 }

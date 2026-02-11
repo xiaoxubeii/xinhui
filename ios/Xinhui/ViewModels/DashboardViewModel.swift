@@ -29,6 +29,7 @@ final class DashboardViewModel: ObservableObject {
     private let defaults = UserDefaults.standard
     private var currentDayKey: String = ""
     private var didRestoreCache = false
+    private var dietEntryObserver: NSObjectProtocol?
 
     func load() {
         deviceId = DeviceIdentifier.current
@@ -38,8 +39,29 @@ final class DashboardViewModel: ObservableObject {
             restoreCachedMetrics()
             didRestoreCache = true
         }
+        registerDietEntryObserver()
         startLiveUpdates()
         Task { await refreshTodayData() }
+    }
+
+    deinit {
+        if let observer = dietEntryObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
+
+    private func registerDietEntryObserver() {
+        guard dietEntryObserver == nil else { return }
+        dietEntryObserver = NotificationCenter.default.addObserver(
+            forName: .dietEntrySaved,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task {
+                await self?.refreshDietSummary()
+                self?.persistCachedMetrics()
+            }
+        }
     }
 
     func refreshTodayData() async {
