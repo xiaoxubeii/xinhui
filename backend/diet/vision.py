@@ -6,6 +6,7 @@ from __future__ import annotations
 import ast
 import base64
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -25,8 +26,7 @@ class VisionSettings:
     base_url: str
     model: str
     timeout: float
-    temperature: float
-    max_tokens: int
+    agent: str
 
 
 def _remove_trailing_commas(text: str) -> str:
@@ -142,46 +142,20 @@ def _resolve_default_model(config: Dict[str, Any] | None) -> str | None:
     return model if isinstance(model, str) and model else None
 
 
-def _resolve_vision_model(config: Dict[str, Any] | None) -> str | None:
-    if not config:
-        return None
-    for key in ("diet_vision_model", "vision_model"):
-        value = config.get(key)
-        if isinstance(value, str) and value:
-            return value
-    diet = config.get("diet")
-    if isinstance(diet, dict):
-        for key in ("vision_model", "model"):
-            value = diet.get(key)
-            if isinstance(value, str) and value:
-                return value
-    vision = config.get("vision")
-    if isinstance(vision, dict):
-        for key in ("model", "vision_model"):
-            value = vision.get(key)
-            if isinstance(value, str) and value:
-                return value
-    return None
-
-
 def resolve_vision_settings() -> VisionSettings:
     base_url = (os.environ.get("DIET_VISION_BASE_URL") or settings.opencode_base_url).rstrip("/")
-    config = _load_opencode_config()
-    model = (
-        os.environ.get("DIET_VISION_MODEL")
-        or _resolve_vision_model(config)
-        or _resolve_default_model(config)
-        or "opencode/minimax-m2.1-free"
-    )
+    # NOTE: Do not fall back to OpenCode's global `model` config, which is often text-only.
+    # If the caller doesn't set DIET_VISION_MODEL, default to a known image-capable model.
+    model = (os.environ.get("DIET_VISION_MODEL") or "").strip() or "opencode/kimi-k2.5-free"
     timeout = float(os.environ.get("DIET_VISION_TIMEOUT") or settings.qwen_timeout)
-    temperature = float(os.environ.get("DIET_VISION_TEMPERATURE") or 0.2)
-    max_tokens = int(os.environ.get("DIET_VISION_MAX_TOKENS") or 800)
+    # Use a built-in agent by default to avoid depending on file-watcher reloads.
+    # (Project default agent is often "clinical", which can break JSON-only output.)
+    agent = (os.environ.get("DIET_VISION_AGENT") or "general").strip() or "general"
     return VisionSettings(
         base_url=base_url,
         model=model,
         timeout=timeout,
-        temperature=temperature,
-        max_tokens=max_tokens,
+        agent=agent,
     )
 
 
@@ -245,10 +219,14 @@ def _iter_json_object_candidates(text: str) -> list[str]:
 
 
 def _sanitize_json_like(text: str) -> str:
-    # Common LLM output issues: trailing commas, non-finite floats.
-    cleaned = _remove_trailing_commas(text)
-    cleaned = re.sub(r"\bNaN\b", "null", cleaned)
-    cleaned = re.sub(r"\b-?Infinity\b", "null", cleaned)
+    # Common LLM output issues: full-width punctuation, curly quotes, trailing commas,
+    # and non-finite floats.
+    cleaned = text
+    cleaned = cleaned.replace("：", ":").replace("，", ",")
+    cleaned = cleaned.replace("“", "\"").replace("”", "\"").replace("‘", "'").replace("’", "'")
+    cleaned = _remove_trailing_commas(cleaned)
+    cleaned = re.sub(r"\bNaN\b", "null", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b-?Infinity\b", "null", cleaned, flags=re.IGNORECASE)
     return cleaned
 
 
@@ -256,7 +234,8 @@ def _parse_model_output_json(content: str) -> Dict[str, Any]:
     last_error: Exception | None = None
 
     for candidate in _iter_json_object_candidates(content):
-        for attempt in (candidate, _sanitize_json_like(candidate)):
+        sanitized = _sanitize_json_like(candidate)
+        for attempt in (candidate, sanitized):
             try:
                 parsed = json.loads(attempt)
                 if isinstance(parsed, dict):
@@ -265,16 +244,17 @@ def _parse_model_output_json(content: str) -> Dict[str, Any]:
                 last_error = exc
 
         # As a fallback, try parsing Python-literal-ish dicts (single quotes/None/True/False).
-        try:
-            py = candidate
-            py = re.sub(r"\bnull\b", "None", py)
-            py = re.sub(r"\btrue\b", "True", py, flags=re.IGNORECASE)
-            py = re.sub(r"\bfalse\b", "False", py, flags=re.IGNORECASE)
-            parsed = ast.literal_eval(py)
-            if isinstance(parsed, dict):
-                return parsed
-        except Exception as exc:
-            last_error = exc
+        for py_candidate in (candidate, sanitized):
+            try:
+                py = py_candidate
+                py = re.sub(r"\bnull\b", "None", py, flags=re.IGNORECASE)
+                py = re.sub(r"\btrue\b", "True", py, flags=re.IGNORECASE)
+                py = re.sub(r"\bfalse\b", "False", py, flags=re.IGNORECASE)
+                parsed = ast.literal_eval(py)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception as exc:
+                last_error = exc
 
     # Keep previous behavior for minimal changes in error messaging.
     try:
@@ -354,6 +334,79 @@ def _extract_text_from_opencode_response(data: object) -> str:
             return "".join(out)
 
     return ""
+
+
+def _extract_error_from_opencode_response(data: object) -> str | None:
+    """Extract a human-readable error message from an OpenCode message response."""
+    if not isinstance(data, dict):
+        return None
+
+    def pick_str(value: object) -> str | None:
+        if isinstance(value, str):
+            s = value.strip()
+            return s if s else None
+        return None
+
+    def msg_from_json_str(raw: str) -> str | None:
+        raw = raw.strip()
+        if not raw:
+            return None
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return None
+        if isinstance(parsed, dict):
+            err = parsed.get("error")
+            if isinstance(err, dict):
+                msg = pick_str(err.get("message"))
+                if msg:
+                    return msg
+            msg = pick_str(parsed.get("message")) or pick_str(parsed.get("detail"))
+            if msg:
+                return msg
+        return None
+
+    def coerce(err_obj: object) -> str | None:
+        if not isinstance(err_obj, dict):
+            return None
+        name = pick_str(err_obj.get("name")) or "OpenCodeError"
+        data_obj = err_obj.get("data")
+        status = None
+        message = pick_str(err_obj.get("message"))
+
+        if isinstance(data_obj, dict):
+            status = data_obj.get("statusCode") if isinstance(data_obj.get("statusCode"), int) else None
+            message = pick_str(data_obj.get("message")) or message
+
+            # When providers return a JSON error payload, OpenCode often stores it as a string.
+            response_body = pick_str(data_obj.get("responseBody"))
+            if response_body:
+                message = msg_from_json_str(response_body) or message
+
+            meta = data_obj.get("metadata")
+            if isinstance(meta, dict):
+                raw = pick_str(meta.get("raw"))
+                if raw:
+                    message = msg_from_json_str(raw) or message
+
+        if not message:
+            return None
+        prefix = f"{name}"
+        if status is not None:
+            prefix = f"{prefix} ({status})"
+        return f"{prefix}: {message}"
+
+    info = data.get("info")
+    if isinstance(info, dict):
+        msg = coerce(info.get("error"))
+        if msg:
+            return msg
+
+    msg = coerce(data.get("error"))
+    if msg:
+        return msg
+
+    return None
 
 
 _NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
@@ -547,6 +600,7 @@ def recognize_food(
     locale: str | None,
 ) -> Tuple[DietVisionRawResult, str]:
     cfg = resolve_vision_settings()
+    log = logging.getLogger(__name__)
     base = cfg.base_url.rstrip("/")
     parsed = urlparse(base)
     root = f"{parsed.scheme}://{parsed.netloc}"
@@ -593,6 +647,8 @@ def recognize_food(
 
     payload: Dict[str, Any] = {
         "system": system_prompt,
+        # Avoid inheriting the default agent prompt (e.g. clinical) which can break JSON-only output.
+        "agent": cfg.agent,
         "parts": [
             {"type": "text", "text": user_prompt},
             {
@@ -622,20 +678,50 @@ def recognize_food(
             session = session_resp.json()
             session_id = session.get("id") or session.get("session_id")
             if not session_id:
-                raise ValueError("OpenCode session id missing")
+                raise RuntimeError("OpenCode session id missing")
+
             msg_url = f"{session_url}/{session_id}/message"
-            resp = client.post(msg_url, headers=headers, json=payload)
-            content_type = resp.headers.get("content-type") or ""
-            if resp.status_code >= 400:
-                resp.raise_for_status()
-            if "text/html" in content_type:
-                raise ValueError("OpenCode API returned HTML")
-            data = resp.json()
+
+            def post_message(msg_payload: Dict[str, Any]) -> object:
+                resp = client.post(msg_url, headers=headers, json=msg_payload)
+                content_type = (resp.headers.get("content-type") or "").lower()
+                if resp.status_code >= 400:
+                    resp.raise_for_status()
+                if "text/html" in content_type:
+                    raise RuntimeError("OpenCode API returned HTML")
+                raw = resp.text or ""
+                if not raw.strip():
+                    raise RuntimeError(
+                        "OpenCode message endpoint returned an empty body "
+                        "(agent may be missing; restart opencode to reload .opencode/agents)."
+                    )
+                try:
+                    return resp.json()
+                except Exception as exc:
+                    snippet = raw.replace("\n", " ").strip()[:200]
+                    raise RuntimeError(f"OpenCode returned non-JSON response: {snippet}") from exc
+
+            try:
+                data = post_message(payload)
+            except Exception as exc:
+                last_error = exc
+                # If a custom agent is misconfigured / not loaded (no file watcher), fall back to a built-in one.
+                if payload.get("agent") and payload.get("agent") != "general":
+                    payload2 = dict(payload)
+                    payload2["agent"] = "general"
+                    data = post_message(payload2)
+                    last_error = None
+                else:
+                    raise
         except Exception as exc:
             last_error = exc
 
     if data is None:
-        raise ValueError(f"OpenCode vision call failed: {last_error}")
+        raise RuntimeError(f"OpenCode vision call failed: {last_error}")
+
+    opencode_error = _extract_error_from_opencode_response(data)
+    if opencode_error:
+        raise RuntimeError(opencode_error)
 
     content = _extract_text_from_opencode_response(data)
     parsed: Dict[str, Any]
@@ -644,6 +730,7 @@ def recognize_food(
     except Exception as exc:
         # Don't fail the whole request when the model returns non-JSON (or empty) output.
         # The iOS review screen can still let users manually fill in food items.
+        log.warning("diet vision output parse failed: %s", exc, exc_info=True)
         parsed = {
             "items": [],
             "totals": None,
