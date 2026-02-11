@@ -14,6 +14,12 @@ enum DateFormatters {
         f.formatOptions = [.withInternetDateTime]
         return f
     }()
+    private static let iso8601LocalFormatter: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        f.timeZone = .current
+        return f
+    }()
     private static let iso8601FormatterWithFractionalSeconds: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -23,6 +29,11 @@ enum DateFormatters {
     /// ISO8601 timestamp string.
     static func iso8601String(from date: Date) -> String {
         isoQueue.sync { iso8601Formatter.string(from: date) }
+    }
+
+    /// ISO8601 timestamp string in local timezone (includes offset).
+    static func iso8601StringLocal(from date: Date) -> String {
+        isoQueue.sync { iso8601LocalFormatter.string(from: date) }
     }
 
     /// Parse ISO8601 timestamp string (supports fractional seconds).

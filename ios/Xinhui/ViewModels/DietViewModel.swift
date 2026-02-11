@@ -111,7 +111,7 @@ final class DietViewModel: ObservableObject {
         notes: String?,
         planId: String?
     ) async throws -> DietCreateEntryResponse {
-        let eatenAtISO = DateFormatters.iso8601String(from: eatenAt)
+        let eatenAtISO = DateFormatters.iso8601StringLocal(from: eatenAt)
         let payload = DietCreateEntryRequest(
             deviceId: DeviceIdentifier.current,
             eatenAt: eatenAtISO,
