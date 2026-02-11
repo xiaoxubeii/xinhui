@@ -50,6 +50,7 @@ struct DataHubView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("数据")
             .refreshable { await viewModel.refreshTodayData() }
+            .toolbar(.visible, for: .tabBar)
         }
     }
 }

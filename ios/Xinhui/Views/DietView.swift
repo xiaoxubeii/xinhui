@@ -121,6 +121,7 @@ struct DietView: View {
             .navigationTitle("营养")
             .onAppear { viewModel.load() }
             .refreshable { await viewModel.refresh() }
+            .toolbar(.visible, for: .tabBar)
             .alert(
                 "加载失败",
                 isPresented: Binding(

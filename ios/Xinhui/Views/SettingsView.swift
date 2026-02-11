@@ -116,6 +116,7 @@ struct SettingsView: View {
             }
             .navigationTitle("设置")
             .onAppear { viewModel.load() }
+            .toolbar(.visible, for: .tabBar)
         }
     }
 }

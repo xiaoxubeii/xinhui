@@ -120,6 +120,7 @@ struct DashboardView: View {
             .background(Color(.systemGroupedBackground))
             .navigationTitle("心慧智问")
             .refreshable { await viewModel.refreshTodayData() }
+            .toolbar(.visible, for: .tabBar)
         }
     }
 }

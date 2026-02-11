@@ -7,9 +7,10 @@
   "weight_kg": null,
   "diagnosis": [],
   "linked_device_ids": [
-    "D658A1BE-0CEB-4B34-B385-D03D0F158BE6"
+    "D658A1BE-0CEB-4B34-B385-D03D0F158BE6",
+    "1665A2C8-7F18-4A0C-8FF5-A0F183F5D1FA"
   ],
   "notes": null,
   "created_at": "2026-02-08T14:19:04.674028Z",
-  "updated_at": "2026-02-08T16:44:12.761031Z"
+  "updated_at": "2026-02-11T18:01:33.649924Z"
 }

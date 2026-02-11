@@ -87,6 +87,7 @@ struct ExerciseView: View {
             .navigationTitle("运动")
             .onAppear { viewModel.load() }
             .refreshable { await viewModel.refresh() }
+            .toolbar(.visible, for: .tabBar)
             .alert(
                 "加载失败",
                 isPresented: Binding(
