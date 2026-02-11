@@ -48,79 +48,73 @@ private struct EditableFoodItem: Identifiable {
     }
 }
 
-private struct DietItemsTable: View {
-    let items: [EditableFoodItem]
+private struct DietFoodCard: View {
+    @Binding var item: EditableFoodItem
+    let onDelete: () -> Void
 
-    private let columns: [GridItem] = [
-        GridItem(.fixed(140), alignment: .leading),
-        GridItem(.fixed(90), alignment: .trailing),
-        GridItem(.fixed(100), alignment: .trailing),
-        GridItem(.fixed(90), alignment: .trailing),
-        GridItem(.fixed(90), alignment: .trailing),
-        GridItem(.fixed(90), alignment: .trailing),
-    ]
+    private let labelWidth: CGFloat = 72
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-                headerCell("菜品")
-                headerCell("重量(g)")
-                headerCell("卡路里(kcal)")
-                headerCell("蛋白质(g)")
-                headerCell("碳水(g)")
-                headerCell("脂肪(g)")
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                TextField("食物名称", text: $item.name)
+                    .font(.headline)
 
-                ForEach(items) { item in
-                    Text(displayName(for: item))
-                        .lineLimit(1)
+                Spacer()
 
-                    Text(weightText(for: item))
-                        .lineLimit(1)
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.plain)
+            }
 
-                    Text(formatNumber(item.caloriesKcal))
-                        .lineLimit(1)
-
-                    Text(formatNumber(item.proteinG))
-                        .lineLimit(1)
-
-                    Text(formatNumber(item.carbsG))
-                        .lineLimit(1)
-
-                    Text(formatNumber(item.fatG))
-                        .lineLimit(1)
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
+                GridRow {
+                    label("重量")
+                    numberField(value: $item.grams, unit: "g")
+                }
+                GridRow {
+                    label("碳水")
+                    numberField(value: $item.carbsG, unit: "g")
+                }
+                GridRow {
+                    label("蛋白质")
+                    numberField(value: $item.proteinG, unit: "g")
+                }
+                GridRow {
+                    label("脂肪")
+                    numberField(value: $item.fatG, unit: "g")
+                }
+                GridRow {
+                    label("热量")
+                    numberField(value: $item.caloriesKcal, unit: "kcal")
                 }
             }
-            .font(.caption)
-            .padding(.vertical, 4)
         }
+        .padding()
+        .background(Color(.systemBackground))
+        .cornerRadius(Constants.cornerRadius)
+        .cardBorder()
+        .shadow(color: .black.opacity(0.04), radius: 2, y: 1)
     }
 
-    private func headerCell(_ title: String) -> some View {
-        Text(title)
-            .font(.caption.weight(.semibold))
+    private func label(_ text: String) -> some View {
+        Text(text)
             .foregroundColor(.secondary)
+            .frame(width: labelWidth, alignment: .leading)
     }
 
-    private func displayName(for item: EditableFoodItem) -> String {
-        let trimmed = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "食物" : trimmed
-    }
-
-    private func weightText(for item: EditableFoodItem) -> String {
-        if item.grams > 0 {
-            return formatNumber(item.grams)
+    private func numberField(value: Binding<Double>, unit: String) -> some View {
+        HStack(spacing: 6) {
+            TextField("", value: value, format: .number)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            Text(unit)
+                .foregroundColor(.secondary)
         }
-        let portion = item.portion.trimmingCharacters(in: .whitespacesAndNewlines)
-        return portion.isEmpty ? "—" : portion
-    }
-
-    private func formatNumber(_ value: Double) -> String {
-        guard value > 0 else { return "—" }
-        let rounded = value.rounded()
-        if abs(rounded - value) < 0.05 {
-            return String(format: "%.0f", value)
-        }
-        return String(format: "%.1f", value)
     }
 }
 
@@ -232,35 +226,15 @@ struct DietReviewView: View {
                 }
 
                 if !editableItems.isEmpty {
-                    Section("识别明细") {
-                        DietItemsTable(items: editableItems)
-                    }
-                }
-
-                ForEach($editableItems) { $item in
-                    Section(item.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "食物" : item.name) {
-                        TextField("食物名称", text: $item.name)
-                        TextField("份量描述（可选）", text: $item.portion)
-                        TextField("克重 (g)", value: $item.grams, format: .number)
-                            .keyboardType(.decimalPad)
-                        TextField("热量 (kcal)", value: $item.caloriesKcal, format: .number)
-                            .keyboardType(.decimalPad)
-                        TextField("蛋白 (g)", value: $item.proteinG, format: .number)
-                            .keyboardType(.decimalPad)
-                        TextField("碳水 (g)", value: $item.carbsG, format: .number)
-                            .keyboardType(.decimalPad)
-                        TextField("脂肪 (g)", value: $item.fatG, format: .number)
-                            .keyboardType(.decimalPad)
-                        if let confidence = item.confidence {
-                            LabeledContent("置信度", value: String(format: "%.0f%%", confidence * 100.0))
-                        }
-
-                        Button(role: .destructive) {
-                            if let idx = editableItems.firstIndex(where: { $0.id == item.id }) {
-                                editableItems.remove(at: idx)
+                    Section("菜品") {
+                        ForEach($editableItems) { $item in
+                            DietFoodCard(item: $item) {
+                                if let idx = editableItems.firstIndex(where: { $0.id == item.id }) {
+                                    editableItems.remove(at: idx)
+                                }
                             }
-                        } label: {
-                            Label("删除此食物", systemImage: "trash")
+                            .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                            .listRowBackground(Color(.systemGroupedBackground))
                         }
                     }
                 }
